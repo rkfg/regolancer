@@ -12,7 +12,6 @@ import (
 
 type ErrRetry struct {
 	amount int64
-	route  *lnrpc.Route
 }
 
 func (e ErrRetry) Error() string {
@@ -62,14 +61,14 @@ func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse,
 			cyanColor(node1name), cyanColor(node2name))
 		if int(result.Failure.FailureSourceIndex) == len(route.Hops)-2 && probeSteps > 0 {
 			fmt.Println("Probing route...")
-			maxAmount, goodRoute, err := r.probeRoute(ctx, route, 0, amount, amount/2, probeSteps)
+			maxAmount, err := r.probeRoute(ctx, route, 0, amount, amount/2, probeSteps)
 			if err != nil {
 				return err
 			}
 			if maxAmount == 0 {
 				return ErrProbeFailed
 			}
-			return ErrRetry{amount: maxAmount, route: goodRoute}
+			return ErrRetry{amount: maxAmount}
 		}
 		return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(), result.Failure.FailureSourceIndex)
 	} else {

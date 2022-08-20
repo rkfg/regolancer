@@ -112,30 +112,30 @@ func (r *regolancer) rebuildRoute(ctx context.Context, route *lnrpc.Route, amoun
 	return resultRoute.Route, err
 }
 
-func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmount, badAmount, amount int64, steps int) (maxAmount int64,
-	goodRoute *lnrpc.Route, err error) {
-	goodRoute, err = r.rebuildRoute(ctx, route, amount)
+func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmount, badAmount, amount int64,
+	steps int) (maxAmount int64, err error) {
+	probedRoute, err := r.rebuildRoute(ctx, route, amount)
 	if err != nil {
-		return 0, nil, err
+		return 0, err
 	}
 	fakeHash := make([]byte, 32)
 	rand.Read(fakeHash)
 	result, err := r.routerClient.SendToRouteV2(ctx,
 		&routerrpc.SendToRouteRequest{
 			PaymentHash: fakeHash,
-			Route:       goodRoute,
+			Route:       probedRoute,
 		})
 	if err != nil {
 		return
 	}
 	if result.Status == lnrpc.HTLCAttempt_SUCCEEDED {
-		return 0, nil, fmt.Errorf("this should never happen")
+		return 0, fmt.Errorf("this should never happen")
 	}
 	if result.Status == lnrpc.HTLCAttempt_FAILED {
 		if result.Failure.Code == lnrpc.Failure_INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS { // payment can succeed
 			if steps == 1 || amount == badAmount {
 				log.Printf("%s is the best amount", hiWhiteColor(amount))
-				return amount, goodRoute, nil
+				return amount, nil
 			}
 			nextAmount := amount + (badAmount-amount)/2
 			log.Printf("%s is good enough, trying amount %s, %s steps left",
@@ -149,7 +149,7 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 					bestAmount = hiWhiteColor("unknown")
 				}
 				log.Printf("%s is too much, best amount is %s", hiWhiteColor(amount), bestAmount)
-				return goodAmount, goodRoute, nil
+				return goodAmount, nil
 			}
 			nextAmount := amount + (goodAmount-amount)/2
 			log.Printf("%s is too much, lowering amount to %s, %s steps left",
@@ -161,7 +161,7 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 			return r.probeRoute(ctx, route, goodAmount, badAmount, amount, steps)
 		}
 	}
-	return 0, nil, fmt.Errorf("unknown error: %+v", result)
+	return 0, fmt.Errorf("unknown error: %+v", result)
 }
 
 func (r *regolancer) addFailedRoute(from, to uint64) {

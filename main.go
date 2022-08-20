@@ -101,10 +101,11 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 				log.Print("Error creating invoice: ", err)
 				return ErrRepeat
 			}
+			probedRoute, err := r.rebuildRoute(ctx, route, amt)
 			if err != nil {
 				log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
 			} else {
-				err = r.pay(attemptCtx, probedInvoice, amt, retryErr.route, 0)
+				err = r.pay(attemptCtx, probedInvoice, amt, probedRoute, 0)
 				if err == nil {
 					return nil
 				} else {
