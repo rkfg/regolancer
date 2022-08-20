@@ -85,7 +85,7 @@ func (r *regolancer) printRoute(route *lnrpc.Route) {
 		}
 		fee := hiWhiteColorF("%-6s", "")
 		if i > 0 {
-			hiWhiteColorF("%-6d", route.Hops[i-1].FeeMsat)
+			fee = hiWhiteColorF("%-6d", route.Hops[i-1].FeeMsat)
 		}
 		fmt.Printf("%s %s %s\n", faintWhiteColor(hop.ChanId), fee, cyanColor(nodeInfo.Node.Alias))
 	}
