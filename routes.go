@@ -168,7 +168,7 @@ func (r *regolancer) addFailedRoute(from, to uint64) {
 	t := time.Now().Add(time.Hour)
 	r.failureCache[fmt.Sprintf("%d-%d", from, to)] = &t
 	for k, v := range r.failureCache {
-		if v.After(time.Now()) {
+		if v.Before(time.Now()) {
 			delete(r.failureCache, k)
 		}
 	}
