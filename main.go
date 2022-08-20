@@ -24,6 +24,7 @@ var params struct {
 	Perc             int64   `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" default:"0"`
 	Amount           int64   `short:"a" long:"amount" description:"amount to rebalance" default:"0"`
 	EconRatio        float64 `long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" default:"1"`
+	ProbeSteps       int     `short:"b" long:"probe" description:"if the payment fails at the last hop try to probe lower amount using binary search" default:"0"`
 }
 
 type regolancer struct {
@@ -92,9 +93,27 @@ func main() {
 			log.Printf("Attempt %s, amount: %s (max fee: %s)", hiWhiteColorF("#%d", attempt),
 				hiWhiteColor(amt), hiWhiteColor(fee/1000))
 			r.printRoute(route)
-			err = r.pay(invoice, amt, route)
+			err = r.pay(invoice, amt, route, params.ProbeSteps)
 			if err == nil {
 				return
+			}
+			if retryErr, ok := err.(ErrRetry); ok {
+				amt = retryErr.amount
+				log.Printf("Trying to rebalance again with %s", hiWhiteColor(amt))
+				probedInvoice, err := r.createInvoice(from, to, amt)
+				if err != nil {
+					log.Fatal("Error creating invoice: ", err)
+				}
+				if err != nil {
+					log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
+				} else {
+					err = r.pay(probedInvoice, amt, retryErr.route, 0)
+					if err == nil {
+						return
+					} else {
+						log.Printf("Probed rebalance failed with error: %s", errColor(err))
+					}
+				}
 			}
 			attempt++
 		}

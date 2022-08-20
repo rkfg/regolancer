@@ -10,13 +10,24 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 )
 
+type ErrRetry struct {
+	amount int64
+	route  *lnrpc.Route
+}
+
+func (e ErrRetry) Error() string {
+	return fmt.Sprintf("retry payment with %d sats", e.amount)
+}
+
+var ErrProbeFailed = fmt.Errorf("probe failed")
+
 func (r *regolancer) createInvoice(from, to uint64, amount int64) (*lnrpc.AddInvoiceResponse, error) {
 	return r.lnClient.AddInvoice(context.Background(), &lnrpc.Invoice{Value: amount,
 		Memo:   fmt.Sprintf("Rebalance %d ⇒ %d", from, to),
 		Expiry: int64(time.Hour.Seconds() * 24)})
 }
 
-func (r *regolancer) pay(invoice *lnrpc.AddInvoiceResponse, amount int64, route *lnrpc.Route) error {
+func (r *regolancer) pay(invoice *lnrpc.AddInvoiceResponse, amount int64, route *lnrpc.Route, probeSteps int) error {
 	lastHop := route.Hops[len(route.Hops)-1]
 	lastHop.MppRecord = &lnrpc.MPPRecord{
 		PaymentAddr:  invoice.PaymentAddr,
@@ -26,7 +37,6 @@ func (r *regolancer) pay(invoice *lnrpc.AddInvoiceResponse, amount int64, route 
 		&routerrpc.SendToRouteRequest{
 			PaymentHash: invoice.RHash,
 			Route:       route,
-			SkipTempErr: true,
 		})
 	if err != nil {
 		return err
@@ -48,6 +58,17 @@ func (r *regolancer) pay(invoice *lnrpc.AddInvoiceResponse, amount int64, route 
 		}
 		fmt.Printf("\n%s %s ⇒ %s\n\n", faintWhiteColor(result.Failure.Code.String()),
 			cyanColor(node1name), cyanColor(node2name))
+		if int(result.Failure.FailureSourceIndex) == len(route.Hops)-2 && probeSteps > 0 {
+			fmt.Println("Probing route...")
+			maxAmount, goodRoute, err := r.probeRoute(route, 0, amount, amount/2, probeSteps)
+			if err != nil {
+				return err
+			}
+			if maxAmount == 0 {
+				return ErrProbeFailed
+			}
+			return ErrRetry{amount: maxAmount, route: goodRoute}
+		}
 		return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(), result.Failure.FailureSourceIndex)
 	} else {
 		log.Printf("Success! Paid %s in fees", hiWhiteColor(result.Route.TotalFeesMsat/1000))
