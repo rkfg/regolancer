@@ -50,7 +50,7 @@ func (r *regolancer) pay(invoice *lnrpc.AddInvoiceResponse, amount int64, route 
 			cyanColor(node1name), cyanColor(node2name))
 		return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(), result.Failure.FailureSourceIndex)
 	} else {
-		log.Printf("Success! Paid %s in fees", hiWhiteColor("%d", result.Route.TotalFeesMsat/1000))
+		log.Printf("Success! Paid %s in fees", hiWhiteColor(result.Route.TotalFeesMsat/1000))
 		return nil
 	}
 }

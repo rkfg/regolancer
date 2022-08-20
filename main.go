@@ -84,12 +84,13 @@ func main() {
 				log.Fatal("Error creating invoice: ", err)
 			}
 		}
-		routes, err := r.getRoutes(from, to, amt*1000, params.EconRatio)
+		routes, fee, err := r.getRoutes(from, to, amt*1000, params.EconRatio)
 		if err != nil {
 			continue
 		}
 		for _, route := range routes {
-			log.Printf("Attempt %s, amount: %s", hiWhiteColor("#%d", attempt), hiWhiteColor("%d", amt))
+			log.Printf("Attempt %s, amount: %s (max fee: %s)", hiWhiteColorF("#%d", attempt),
+				hiWhiteColor(amt), hiWhiteColor(fee/1000))
 			r.printRoute(route)
 			err = r.pay(invoice, amt, route)
 			if err == nil {
