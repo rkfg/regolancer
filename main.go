@@ -93,7 +93,6 @@ func main() {
 			r.printRoute(route)
 			err = r.pay(invoice, amt, route)
 			if err == nil {
-				log.Print("Task complete.")
 				return
 			}
 			attempt++
