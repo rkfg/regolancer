@@ -12,10 +12,6 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 )
 
-func calcFeeMsat(amtMsat int64, policy *lnrpc.RoutingPolicy) float64 {
-	return float64(policy.FeeBaseMsat+amtMsat*policy.FeeRateMilliMsat) / 1e6
-}
-
 func (r *regolancer) getChanInfo(ctx context.Context, chanId uint64) (*lnrpc.ChannelEdge, error) {
 	if c, ok := r.chanCache[chanId]; ok {
 		return c, nil
@@ -28,20 +24,29 @@ func (r *regolancer) getChanInfo(ctx context.Context, chanId uint64) (*lnrpc.Cha
 	return c, nil
 }
 
-func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int64, ratio float64) ([]*lnrpc.Route, int64, error) {
-	routeCtx, cancel := context.WithTimeout(ctx, time.Second*30)
-	defer cancel()
-	c, err := r.getChanInfo(routeCtx, to)
+func (r *regolancer) calcFeeMsat(ctx context.Context, to uint64, amtMsat int64, ratio float64) (feeMsat int64,
+	lastPKstr string, err error) {
+	c, err := r.getChanInfo(ctx, to)
 	if err != nil {
-		return nil, 0, err
+		return 0, "", err
 	}
-	lastPKstr := c.Node1Pub
+	lastPKstr = c.Node1Pub
 	policy := c.Node2Policy
 	if lastPKstr == r.myPK {
 		lastPKstr = c.Node2Pub
 		policy = c.Node1Policy
 	}
-	feeMsat := int64(calcFeeMsat(amtMsat, policy) * ratio)
+	feeMsat = int64(float64(policy.FeeBaseMsat+amtMsat*policy.FeeRateMilliMsat) * ratio / 1e6)
+	return
+}
+
+func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int64, ratio float64) ([]*lnrpc.Route, int64, error) {
+	routeCtx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
+	feeMsat, lastPKstr, err := r.calcFeeMsat(routeCtx, to, amtMsat, ratio)
+	if err != nil {
+		return nil, 0, err
+	}
 	lastPK, err := hex.DecodeString(lastPKstr)
 	if err != nil {
 		return nil, 0, err
@@ -113,10 +118,30 @@ func (r *regolancer) rebuildRoute(ctx context.Context, route *lnrpc.Route, amoun
 }
 
 func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmount, badAmount, amount int64,
-	steps int) (maxAmount int64, err error) {
+	steps int, ratio float64) (maxAmount int64, err error) {
 	probedRoute, err := r.rebuildRoute(ctx, route, amount)
 	if err != nil {
 		return 0, err
+	}
+	maxFeeMsat, _, err := r.calcFeeMsat(ctx, probedRoute.Hops[len(probedRoute.Hops)-1].ChanId, amount*1000, ratio)
+	if err != nil {
+		return 0, err
+	}
+	if probedRoute.TotalFeesMsat > maxFeeMsat {
+		if steps == 1 {
+			bestAmount := hiWhiteColor(goodAmount)
+			if goodAmount == 0 {
+				bestAmount = hiWhiteColor("unknown")
+			}
+			log.Printf("%s requires too high fee %s (max allowed is %s), best amount is %s", hiWhiteColor(amount),
+				hiWhiteColor(probedRoute.TotalFeesMsat/1000), hiWhiteColor(maxFeeMsat/1000), bestAmount)
+			return goodAmount, nil
+		}
+		nextAmount := amount + (badAmount-amount)/2
+		log.Printf("%s requires too high fee %s (max allowed is %s), increasing amount to %s, %s steps left",
+			hiWhiteColor(amount), hiWhiteColor(probedRoute.TotalFeesMsat/1000), hiWhiteColor(maxFeeMsat/1000),
+			hiWhiteColor(nextAmount), hiWhiteColor(steps-1))
+		return r.probeRoute(ctx, route, goodAmount, badAmount, nextAmount, steps-1, ratio)
 	}
 	fakeHash := make([]byte, 32)
 	rand.Read(fakeHash)
@@ -134,13 +159,13 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 	if result.Status == lnrpc.HTLCAttempt_FAILED {
 		if result.Failure.Code == lnrpc.Failure_INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS { // payment can succeed
 			if steps == 1 || amount == badAmount {
-				log.Printf("%s is the best amount", hiWhiteColor(amount))
+				log.Printf("best amount is %s", hiWhiteColor(amount))
 				return amount, nil
 			}
 			nextAmount := amount + (badAmount-amount)/2
 			log.Printf("%s is good enough, trying amount %s, %s steps left",
 				hiWhiteColor(amount), hiWhiteColor(nextAmount), hiWhiteColor(steps-1))
-			return r.probeRoute(ctx, route, amount, badAmount, nextAmount, steps-1)
+			return r.probeRoute(ctx, route, amount, badAmount, nextAmount, steps-1, ratio)
 		}
 		if result.Failure.Code == lnrpc.Failure_TEMPORARY_CHANNEL_FAILURE {
 			if steps == 1 {
@@ -154,11 +179,11 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 			nextAmount := amount + (goodAmount-amount)/2
 			log.Printf("%s is too much, lowering amount to %s, %s steps left",
 				hiWhiteColor(amount), hiWhiteColor(nextAmount), hiWhiteColor(steps-1))
-			return r.probeRoute(ctx, route, goodAmount, amount, nextAmount, steps-1)
+			return r.probeRoute(ctx, route, goodAmount, amount, nextAmount, steps-1, ratio)
 		}
 		if result.Failure.Code == lnrpc.Failure_FEE_INSUFFICIENT {
 			log.Printf("Fee insufficient, retrying...")
-			return r.probeRoute(ctx, route, goodAmount, badAmount, amount, steps)
+			return r.probeRoute(ctx, route, goodAmount, badAmount, amount, steps, ratio)
 		}
 	}
 	return 0, fmt.Errorf("unknown error: %+v", result)

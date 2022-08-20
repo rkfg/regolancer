@@ -61,7 +61,7 @@ func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse,
 			cyanColor(node1name), cyanColor(node2name))
 		if int(result.Failure.FailureSourceIndex) == len(route.Hops)-2 && probeSteps > 0 {
 			fmt.Println("Probing route...")
-			maxAmount, err := r.probeRoute(ctx, route, 0, amount, amount/2, probeSteps)
+			maxAmount, err := r.probeRoute(ctx, route, 0, amount, amount/2, probeSteps, params.EconRatio)
 			if err != nil {
 				return err
 			}
