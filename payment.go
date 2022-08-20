@@ -21,19 +21,19 @@ func (e ErrRetry) Error() string {
 
 var ErrProbeFailed = fmt.Errorf("probe failed")
 
-func (r *regolancer) createInvoice(from, to uint64, amount int64) (*lnrpc.AddInvoiceResponse, error) {
-	return r.lnClient.AddInvoice(context.Background(), &lnrpc.Invoice{Value: amount,
+func (r *regolancer) createInvoice(ctx context.Context, from, to uint64, amount int64) (*lnrpc.AddInvoiceResponse, error) {
+	return r.lnClient.AddInvoice(ctx, &lnrpc.Invoice{Value: amount,
 		Memo:   fmt.Sprintf("Rebalance %d ⇒ %d", from, to),
 		Expiry: int64(time.Hour.Seconds() * 24)})
 }
 
-func (r *regolancer) pay(invoice *lnrpc.AddInvoiceResponse, amount int64, route *lnrpc.Route, probeSteps int) error {
+func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse, amount int64, route *lnrpc.Route, probeSteps int) error {
 	lastHop := route.Hops[len(route.Hops)-1]
 	lastHop.MppRecord = &lnrpc.MPPRecord{
 		PaymentAddr:  invoice.PaymentAddr,
 		TotalAmtMsat: amount * 1000,
 	}
-	result, err := r.routerClient.SendToRouteV2(context.Background(),
+	result, err := r.routerClient.SendToRouteV2(ctx,
 		&routerrpc.SendToRouteRequest{
 			PaymentHash: invoice.RHash,
 			Route:       route,
@@ -42,7 +42,9 @@ func (r *regolancer) pay(invoice *lnrpc.AddInvoiceResponse, amount int64, route 
 		return err
 	}
 	if result.Status == lnrpc.HTLCAttempt_FAILED {
-		node1, err := r.getNodeInfo(route.Hops[result.Failure.FailureSourceIndex-1].PubKey)
+		nodeCtx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+		node1, err := r.getNodeInfo(nodeCtx, route.Hops[result.Failure.FailureSourceIndex-1].PubKey)
 		node1name := ""
 		node2name := ""
 		if err != nil {
@@ -50,7 +52,7 @@ func (r *regolancer) pay(invoice *lnrpc.AddInvoiceResponse, amount int64, route 
 		} else {
 			node1name = node1.Node.Alias
 		}
-		node2, err := r.getNodeInfo(route.Hops[result.Failure.FailureSourceIndex].PubKey)
+		node2, err := r.getNodeInfo(nodeCtx, route.Hops[result.Failure.FailureSourceIndex].PubKey)
 		if err != nil {
 			node2name = fmt.Sprintf("node%d", result.Failure.FailureSourceIndex)
 		} else {
@@ -60,7 +62,7 @@ func (r *regolancer) pay(invoice *lnrpc.AddInvoiceResponse, amount int64, route 
 			cyanColor(node1name), cyanColor(node2name))
 		if int(result.Failure.FailureSourceIndex) == len(route.Hops)-2 && probeSteps > 0 {
 			fmt.Println("Probing route...")
-			maxAmount, goodRoute, err := r.probeRoute(route, 0, amount, amount/2, probeSteps)
+			maxAmount, goodRoute, err := r.probeRoute(ctx, route, 0, amount, amount/2, probeSteps)
 			if err != nil {
 				return err
 			}

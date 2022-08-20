@@ -28,32 +28,10 @@ func (r *regolancer) getChanInfo(ctx context.Context, chanId uint64) (*lnrpc.Cha
 	return c, nil
 }
 
-// currently unused
-func (r *regolancer) buildIgnoredPairs(channels []uint64) error {
-	for _, chanId := range channels {
-		c, err := r.getChanInfo(context.Background(), chanId)
-		if err != nil {
-			return err
-		}
-		node1pk, err := hex.DecodeString(c.Node1Pub)
-		if err != nil {
-			return err
-		}
-		node2pk, err := hex.DecodeString(c.Node2Pub)
-		if err != nil {
-			return err
-		}
-		pair1 := lnrpc.NodePair{From: node1pk, To: node2pk}
-		pair2 := lnrpc.NodePair{From: node2pk, To: node1pk}
-		r.ignoredPairs = append(r.ignoredPairs, &pair1, &pair2)
-	}
-	return nil
-}
-
-func (r *regolancer) getRoutes(from, to uint64, amtMsat int64, ratio float64) ([]*lnrpc.Route, int64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int64, ratio float64) ([]*lnrpc.Route, int64, error) {
+	routeCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
-	c, err := r.getChanInfo(ctx, to)
+	c, err := r.getChanInfo(routeCtx, to)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -68,7 +46,7 @@ func (r *regolancer) getRoutes(from, to uint64, amtMsat int64, ratio float64) ([
 	if err != nil {
 		return nil, 0, err
 	}
-	routes, err := r.lnClient.QueryRoutes(ctx, &lnrpc.QueryRoutesRequest{
+	routes, err := r.lnClient.QueryRoutes(routeCtx, &lnrpc.QueryRoutesRequest{
 		PubKey:            r.myPK,
 		OutgoingChanId:    from,
 		LastHopPubkey:     lastPK,
@@ -82,25 +60,25 @@ func (r *regolancer) getRoutes(from, to uint64, amtMsat int64, ratio float64) ([
 	return routes.Routes, feeMsat, nil
 }
 
-func (r *regolancer) getNodeInfo(pk string) (*lnrpc.NodeInfo, error) {
+func (r *regolancer) getNodeInfo(ctx context.Context, pk string) (*lnrpc.NodeInfo, error) {
 	if nodeInfo, ok := r.nodeCache[pk]; ok {
 		return nodeInfo, nil
 	}
-	nodeInfo, err := r.lnClient.GetNodeInfo(context.Background(), &lnrpc.NodeInfoRequest{PubKey: pk})
+	nodeInfo, err := r.lnClient.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: pk})
 	if err == nil {
 		r.nodeCache[pk] = nodeInfo
 	}
 	return nodeInfo, err
 }
 
-func (r *regolancer) printRoute(route *lnrpc.Route) {
+func (r *regolancer) printRoute(ctx context.Context, route *lnrpc.Route) {
 	if len(route.Hops) == 0 {
 		return
 	}
 	errs := ""
 	fmt.Printf("%s %s\n", faintWhiteColor("Total fee:"), hiWhiteColor(route.TotalFeesMsat/1000))
 	for i, hop := range route.Hops {
-		nodeInfo, err := r.getNodeInfo(hop.PubKey)
+		nodeInfo, err := r.getNodeInfo(ctx, hop.PubKey)
 		if err != nil {
 			errs = errs + err.Error() + "\n"
 			continue
@@ -116,13 +94,13 @@ func (r *regolancer) printRoute(route *lnrpc.Route) {
 	}
 }
 
-func (r *regolancer) rebuildRoute(route *lnrpc.Route, amount int64) (*lnrpc.Route, error) {
+func (r *regolancer) rebuildRoute(ctx context.Context, route *lnrpc.Route, amount int64) (*lnrpc.Route, error) {
 	pks := [][]byte{}
 	for _, h := range route.Hops {
 		pk, _ := hex.DecodeString(h.PubKey)
 		pks = append(pks, pk)
 	}
-	resultRoute, err := r.routerClient.BuildRoute(context.Background(), &routerrpc.BuildRouteRequest{
+	resultRoute, err := r.routerClient.BuildRoute(ctx, &routerrpc.BuildRouteRequest{
 		AmtMsat:        amount * 1000,
 		OutgoingChanId: route.Hops[0].ChanId,
 		HopPubkeys:     pks,
@@ -134,15 +112,15 @@ func (r *regolancer) rebuildRoute(route *lnrpc.Route, amount int64) (*lnrpc.Rout
 	return resultRoute.Route, err
 }
 
-func (r *regolancer) probeRoute(route *lnrpc.Route, goodAmount, badAmount, amount int64, steps int) (maxAmount int64,
+func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmount, badAmount, amount int64, steps int) (maxAmount int64,
 	goodRoute *lnrpc.Route, err error) {
-	goodRoute, err = r.rebuildRoute(route, amount)
+	goodRoute, err = r.rebuildRoute(ctx, route, amount)
 	if err != nil {
 		return 0, nil, err
 	}
 	fakeHash := make([]byte, 32)
 	rand.Read(fakeHash)
-	result, err := r.routerClient.SendToRouteV2(context.Background(),
+	result, err := r.routerClient.SendToRouteV2(ctx,
 		&routerrpc.SendToRouteRequest{
 			PaymentHash: fakeHash,
 			Route:       goodRoute,
@@ -162,7 +140,7 @@ func (r *regolancer) probeRoute(route *lnrpc.Route, goodAmount, badAmount, amoun
 			nextAmount := amount + (badAmount-amount)/2
 			log.Printf("%s is good enough, trying amount %s, %s steps left",
 				hiWhiteColor(amount), hiWhiteColor(nextAmount), hiWhiteColor(steps-1))
-			return r.probeRoute(route, amount, badAmount, nextAmount, steps-1)
+			return r.probeRoute(ctx, route, amount, badAmount, nextAmount, steps-1)
 		}
 		if result.Failure.Code == lnrpc.Failure_TEMPORARY_CHANNEL_FAILURE {
 			if steps == 1 {
@@ -176,12 +154,27 @@ func (r *regolancer) probeRoute(route *lnrpc.Route, goodAmount, badAmount, amoun
 			nextAmount := amount + (goodAmount-amount)/2
 			log.Printf("%s is too much, lowering amount to %s, %s steps left",
 				hiWhiteColor(amount), hiWhiteColor(nextAmount), hiWhiteColor(steps-1))
-			return r.probeRoute(route, goodAmount, amount, nextAmount, steps-1)
+			return r.probeRoute(ctx, route, goodAmount, amount, nextAmount, steps-1)
 		}
 		if result.Failure.Code == lnrpc.Failure_FEE_INSUFFICIENT {
 			log.Printf("Fee insufficient, retrying...")
-			return r.probeRoute(route, goodAmount, badAmount, amount, steps)
+			return r.probeRoute(ctx, route, goodAmount, badAmount, amount, steps)
 		}
 	}
 	return 0, nil, fmt.Errorf("unknown error: %+v", result)
+}
+
+func (r *regolancer) addFailedRoute(from, to uint64) {
+	t := time.Now().Add(time.Hour)
+	r.failureCache[fmt.Sprintf("%d-%d", from, to)] = &t
+	for k, v := range r.failureCache {
+		if v.After(time.Now()) {
+			delete(r.failureCache, k)
+		}
+	}
+}
+
+func (r *regolancer) isFailedRoute(from, to uint64) bool {
+	_, ok := r.failureCache[fmt.Sprintf("%d-%d", from, to)]
+	return ok
 }

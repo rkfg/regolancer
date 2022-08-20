@@ -9,8 +9,8 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc"
 )
 
-func (r *regolancer) getChannels() error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+func (r *regolancer) getChannels(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 	channels, err := r.lnClient.ListChannels(ctx, &lnrpc.ListChannelsRequest{ActiveOnly: true, PublicOnly: true})
 	if err != nil {
@@ -49,11 +49,22 @@ func min(args ...int64) (result int64) {
 	return
 }
 
-func (r *regolancer) pickChannelPair(amount int64) (from uint64, to uint64, maxAmount int64) {
-	fromIdx := rand.Int31n(int32(len(r.fromChannels)))
-	toIdx := rand.Int31n(int32(len(r.toChannels)))
-	fromChan := r.fromChannels[fromIdx]
-	toChan := r.toChannels[toIdx]
+func (r *regolancer) pickChannelPair(ctx context.Context, amount int64) (from uint64, to uint64, maxAmount int64, err error) {
+	var fromChan, toChan *lnrpc.Channel
+	for {
+		select {
+		case <-ctx.Done():
+			return 0, 0, 0, ctx.Err()
+		default:
+		}
+		fromIdx := rand.Int31n(int32(len(r.fromChannels)))
+		toIdx := rand.Int31n(int32(len(r.toChannels)))
+		fromChan = r.fromChannels[fromIdx]
+		toChan = r.toChannels[toIdx]
+		if !r.isFailedRoute(fromChan.ChanId, toChan.ChanId) {
+			break
+		}
+	}
 	maxFrom := fromChan.Capacity/2 - fromChan.RemoteBalance
 	maxTo := toChan.Capacity/2 - toChan.LocalBalance
 	if amount == 0 {
@@ -61,5 +72,5 @@ func (r *regolancer) pickChannelPair(amount int64) (from uint64, to uint64, maxA
 	} else {
 		maxAmount = min(maxFrom, maxTo, amount)
 	}
-	return fromChan.ChanId, toChan.ChanId, maxAmount
+	return fromChan.ChanId, toChan.ChanId, maxAmount, nil
 }

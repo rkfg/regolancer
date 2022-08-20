@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/rand"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 )
+
+var ErrRepeat = fmt.Errorf("repeat")
 
 var mainParams struct {
 	Config string `short:"f" long:"config" description:"config file path"`
@@ -42,7 +45,7 @@ type regolancer struct {
 	toChannels   []*lnrpc.Channel
 	nodeCache    map[string]*lnrpc.NodeInfo
 	chanCache    map[uint64]*lnrpc.ChannelEdge
-	ignoredPairs []*lnrpc.NodePair
+	failureCache map[string]*time.Time
 }
 
 func loadConfig() {
@@ -60,6 +63,58 @@ func loadConfig() {
 			log.Fatalf("Error reading config file %s: %s", mainParams.Config, err)
 		}
 	}
+}
+
+func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoiceResponse, attempt *int) error {
+	attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Minute*30)
+	defer attemptCancel()
+	from, to, amt, err := r.pickChannelPair(attemptCtx, params.Amount)
+	if err != nil {
+		log.Printf("Error during picking channel: %s", err)
+		return ErrRepeat
+	}
+	if params.Amount == 0 || *invoice == nil {
+		*invoice, err = r.createInvoice(attemptCtx, from, to, amt)
+		if err != nil {
+			log.Print("Error creating invoice: ", err)
+			return ErrRepeat
+		}
+	}
+	routes, fee, err := r.getRoutes(attemptCtx, from, to, amt*1000, params.EconRatio)
+	if err != nil {
+		r.addFailedRoute(from, to)
+		return ErrRepeat
+	}
+	for _, route := range routes {
+		log.Printf("Attempt %s, amount: %s (max fee: %s)", hiWhiteColorF("#%d", *attempt),
+			hiWhiteColor(amt), hiWhiteColor(fee/1000))
+		r.printRoute(attemptCtx, route)
+		err = r.pay(attemptCtx, *invoice, amt, route, params.ProbeSteps)
+		if err == nil {
+			return nil
+		}
+		if retryErr, ok := err.(ErrRetry); ok {
+			amt = retryErr.amount
+			log.Printf("Trying to rebalance again with %s", hiWhiteColor(amt))
+			probedInvoice, err := r.createInvoice(attemptCtx, from, to, amt)
+			if err != nil {
+				log.Print("Error creating invoice: ", err)
+				return ErrRepeat
+			}
+			if err != nil {
+				log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
+			} else {
+				err = r.pay(attemptCtx, probedInvoice, amt, retryErr.route, 0)
+				if err == nil {
+					return nil
+				} else {
+					log.Printf("Probed rebalance failed with error: %s", errColor(err))
+				}
+			}
+		}
+		*attempt++
+	}
+	return ErrRepeat
 }
 
 func main() {
@@ -96,15 +151,22 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	r := regolancer{nodeCache: map[string]*lnrpc.NodeInfo{}, chanCache: map[uint64]*lnrpc.ChannelEdge{}}
+	r := regolancer{
+		nodeCache:    map[string]*lnrpc.NodeInfo{},
+		chanCache:    map[uint64]*lnrpc.ChannelEdge{},
+		failureCache: map[string]*time.Time{},
+	}
 	r.lnClient = lnrpc.NewLightningClient(conn)
 	r.routerClient = routerrpc.NewRouterClient(conn)
-	info, err := r.lnClient.GetInfo(context.Background(), &lnrpc.GetInfoRequest{})
+	mainCtx, cancel := context.WithTimeout(context.Background(), time.Hour*6)
+	defer cancel()
+	infoCtx, infoCancel := context.WithTimeout(mainCtx, time.Second*30)
+	info, err := r.lnClient.GetInfo(infoCtx, &lnrpc.GetInfoRequest{})
 	if err != nil {
 		log.Fatal(err)
 	}
 	r.myPK = info.IdentityPubkey
-	err = r.getChannels()
+	err = r.getChannels(infoCtx)
 	if err != nil {
 		log.Fatal("Error listing own channels: ", err)
 	}
@@ -118,47 +180,22 @@ func main() {
 	if len(r.toChannels) == 0 {
 		log.Fatal("No target channels selected")
 	}
+	infoCancel()
 	var invoice *lnrpc.AddInvoiceResponse
 	attempt := 1
 	for {
-		from, to, amt := r.pickChannelPair(params.Amount)
-		if params.Amount == 0 || invoice == nil {
-			invoice, err = r.createInvoice(from, to, amt)
-			if err != nil {
-				log.Fatal("Error creating invoice: ", err)
-			}
+		select {
+		case <-mainCtx.Done():
+			log.Println("Rebalancing timed out")
+			return
+		default:
 		}
-		routes, fee, err := r.getRoutes(from, to, amt*1000, params.EconRatio)
-		if err != nil {
-			continue
+		err = tryRebalance(mainCtx, &r, &invoice, &attempt)
+		if err == nil {
+			return
 		}
-		for _, route := range routes {
-			log.Printf("Attempt %s, amount: %s (max fee: %s)", hiWhiteColorF("#%d", attempt),
-				hiWhiteColor(amt), hiWhiteColor(fee/1000))
-			r.printRoute(route)
-			err = r.pay(invoice, amt, route, params.ProbeSteps)
-			if err == nil {
-				return
-			}
-			if retryErr, ok := err.(ErrRetry); ok {
-				amt = retryErr.amount
-				log.Printf("Trying to rebalance again with %s", hiWhiteColor(amt))
-				probedInvoice, err := r.createInvoice(from, to, amt)
-				if err != nil {
-					log.Fatal("Error creating invoice: ", err)
-				}
-				if err != nil {
-					log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
-				} else {
-					err = r.pay(probedInvoice, amt, retryErr.route, 0)
-					if err == nil {
-						return
-					} else {
-						log.Printf("Probed rebalance failed with error: %s", errColor(err))
-					}
-				}
-			}
-			attempt++
+		if err != ErrRepeat {
+			log.Println(err)
 		}
 	}
 }
