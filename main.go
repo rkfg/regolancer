@@ -15,7 +15,7 @@ import (
 
 var params struct {
 	Connect          string  `short:"c" long:"connect" description:"connect to lnd using host:port" default:"127.0.0.1:10009"`
-	TLSCert          string  `short:"t" long:"tlscert" description:"path to tls.cert to connect" default:"tls.cert"`
+	TLSCert          string  `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false"`
 	MacaroonDir      string  `long:"macaroon.dir" description:"path to the macaroon directory" required:"false"`
 	MacaroonFilename string  `long:"macaroon.filename" description:"macaroon filename" default:"admin.macaroon"`
 	Network          string  `short:"n" long:"network" description:"bitcoin network to use" default:"mainnet"`
