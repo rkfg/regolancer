@@ -20,12 +20,19 @@ func (r *regolancer) getChannels() error {
 	return nil
 }
 
-func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error {
+func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64, ignore []uint64) error {
+	ignoredSet := map[uint64]struct{}{}
+	for _, cid := range ignore {
+		ignoredSet[cid] = struct{}{}
+	}
 	for _, c := range r.channels {
 		if c.LocalBalance < c.Capacity*toPerc/100 && c.LocalBalance+amount < c.Capacity/2 {
 			r.toChannels = append(r.toChannels, c)
 		}
 		if c.RemoteBalance < c.Capacity*fromPerc/100 && c.RemoteBalance-amount < c.Capacity/2 {
+			if _, ok := ignoredSet[c.ChanId]; ok {
+				continue
+			}
 			r.fromChannels = append(r.fromChannels, c)
 		}
 	}

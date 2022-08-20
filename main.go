@@ -19,17 +19,18 @@ var mainParams struct {
 }
 
 var params struct {
-	Connect          string  `short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect"`
-	TLSCert          string  `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert"`
-	MacaroonDir      string  `long:"macaroon.dir" description:"path to the macaroon directory" required:"false" json:"macaroon.dir"`
-	MacaroonFilename string  `long:"macaroon.filename" description:"macaroon filename" json:"macaroon.filename"`
-	Network          string  `short:"n" long:"network" description:"bitcoin network to use" json:"network"`
-	FromPerc         int64   `long:"pfrom" description:"channels with less than this inbound liquidity percentage will be considered as source channels" json:"pfrom"`
-	ToPerc           int64   `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto"`
-	Perc             int64   `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc"`
-	Amount           int64   `short:"a" long:"amount" description:"amount to rebalance" json:"amount"`
-	EconRatio        float64 `long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio"`
-	ProbeSteps       int     `short:"b" long:"probe" description:"if the payment fails at the last hop try to probe lower amount using binary search" json:"probe_steps"`
+	Connect          string   `short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect"`
+	TLSCert          string   `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert"`
+	MacaroonDir      string   `long:"macaroon.dir" description:"path to the macaroon directory" required:"false" json:"macaroon.dir"`
+	MacaroonFilename string   `long:"macaroon.filename" description:"macaroon filename" json:"macaroon.filename"`
+	Network          string   `short:"n" long:"network" description:"bitcoin network to use" json:"network"`
+	FromPerc         int64    `long:"pfrom" description:"channels with less than this inbound liquidity percentage will be considered as source channels" json:"pfrom"`
+	ToPerc           int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto"`
+	Perc             int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc"`
+	Amount           int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount"`
+	EconRatio        float64  `long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio"`
+	ProbeSteps       int      `short:"b" long:"probe" description:"if the payment fails at the last hop try to probe lower amount using binary search" json:"probe_steps"`
+	ExcludeChannels  []uint64 `short:"e" long:"exclude-channel" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels"`
 }
 
 type regolancer struct {
@@ -41,10 +42,11 @@ type regolancer struct {
 	toChannels   []*lnrpc.Channel
 	nodeCache    map[string]*lnrpc.NodeInfo
 	chanCache    map[uint64]*lnrpc.ChannelEdge
+	ignoredPairs []*lnrpc.NodePair
 }
 
 func loadConfig() {
-	flags.Parse(&mainParams)
+	flags.NewParser(&mainParams, flags.Default|flags.IgnoreUnknown).Parse()
 	if mainParams.Config == "" {
 		return
 	}
@@ -72,6 +74,9 @@ func main() {
 	}
 	if params.MacaroonFilename == "" {
 		params.MacaroonFilename = "admin.macaroon"
+	}
+	if params.Network == "" {
+		params.Network = "mainnet"
 	}
 	if params.FromPerc == 0 {
 		params.FromPerc = 50
@@ -103,7 +108,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Error listing own channels: ", err)
 	}
-	err = r.getChannelCandidates(params.FromPerc, params.ToPerc, params.Amount)
+	err = r.getChannelCandidates(params.FromPerc, params.ToPerc, params.Amount, params.ExcludeChannels)
 	if err != nil {
 		log.Fatal("Error choosing channels: ", err)
 	}

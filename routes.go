@@ -28,6 +28,28 @@ func (r *regolancer) getChanInfo(ctx context.Context, chanId uint64) (*lnrpc.Cha
 	return c, nil
 }
 
+// currently unused
+func (r *regolancer) buildIgnoredPairs(channels []uint64) error {
+	for _, chanId := range channels {
+		c, err := r.getChanInfo(context.Background(), chanId)
+		if err != nil {
+			return err
+		}
+		node1pk, err := hex.DecodeString(c.Node1Pub)
+		if err != nil {
+			return err
+		}
+		node2pk, err := hex.DecodeString(c.Node2Pub)
+		if err != nil {
+			return err
+		}
+		pair1 := lnrpc.NodePair{From: node1pk, To: node2pk}
+		pair2 := lnrpc.NodePair{From: node2pk, To: node1pk}
+		r.ignoredPairs = append(r.ignoredPairs, &pair1, &pair2)
+	}
+	return nil
+}
+
 func (r *regolancer) getRoutes(from, to uint64, amtMsat int64, ratio float64) ([]*lnrpc.Route, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
