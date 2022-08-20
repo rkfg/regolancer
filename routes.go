@@ -130,8 +130,9 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 	if probedRoute.TotalFeesMsat > maxFeeMsat {
 		if steps == 1 {
 			bestAmount := hiWhiteColor(goodAmount)
-			if goodAmount == 0 {
+			if goodAmount <= 0 {
 				bestAmount = hiWhiteColor("unknown")
+				goodAmount = 0
 			}
 			log.Printf("%s requires too high fee %s (max allowed is %s), best amount is %s", hiWhiteColor(amount),
 				hiWhiteColor(probedRoute.TotalFeesMsat/1000), hiWhiteColor(maxFeeMsat/1000), bestAmount)
@@ -141,7 +142,9 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 		log.Printf("%s requires too high fee %s (max allowed is %s), increasing amount to %s, %s steps left",
 			hiWhiteColor(amount), hiWhiteColor(probedRoute.TotalFeesMsat/1000), hiWhiteColor(maxFeeMsat/1000),
 			hiWhiteColor(nextAmount), hiWhiteColor(steps-1))
-		return r.probeRoute(ctx, route, goodAmount, badAmount, nextAmount, steps-1, ratio)
+		// returning negative amount as "good", it's a special case which means this is
+		// rather the lower bound and the actual good amount is still unknown
+		return r.probeRoute(ctx, route, -amount, badAmount, nextAmount, steps-1, ratio)
 	}
 	fakeHash := make([]byte, 32)
 	rand.Read(fakeHash)
@@ -170,13 +173,19 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 		if result.Failure.Code == lnrpc.Failure_TEMPORARY_CHANNEL_FAILURE {
 			if steps == 1 {
 				bestAmount := hiWhiteColor(goodAmount)
-				if goodAmount == 0 {
+				if goodAmount <= 0 {
 					bestAmount = hiWhiteColor("unknown")
+					goodAmount = 0
 				}
 				log.Printf("%s is too much, best amount is %s", hiWhiteColor(amount), bestAmount)
 				return goodAmount, nil
 			}
-			nextAmount := amount + (goodAmount-amount)/2
+			var nextAmount int64
+			if goodAmount >= 0 {
+				nextAmount = amount + (goodAmount-amount)/2
+			} else {
+				nextAmount = amount + (goodAmount+amount)/2
+			}
 			log.Printf("%s is too much, lowering amount to %s, %s steps left",
 				hiWhiteColor(amount), hiWhiteColor(nextAmount), hiWhiteColor(steps-1))
 			return r.probeRoute(ctx, route, goodAmount, amount, nextAmount, steps-1, ratio)
