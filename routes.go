@@ -128,6 +128,9 @@ func (r *regolancer) rebuildRoute(route *lnrpc.Route, amount int64) (*lnrpc.Rout
 		HopPubkeys:     pks,
 		FinalCltvDelta: 144,
 	})
+	if err != nil {
+		return nil, err
+	}
 	return resultRoute.Route, err
 }
 
