@@ -78,7 +78,7 @@ func main() {
 	attempt := 1
 	for {
 		from, to, amt := r.pickChannelPair(params.Amount)
-		if params.Amount > 0 && invoice == nil {
+		if params.Amount == 0 || invoice == nil {
 			invoice, err = r.createInvoice(from, to, amt)
 			if err != nil {
 				log.Fatal("Error creating invoice: ", err)
@@ -89,9 +89,9 @@ func main() {
 			continue
 		}
 		for _, route := range routes {
-			log.Printf("Attempt #%d", attempt)
+			log.Printf("Attempt %s, amount: %s", hiWhiteColor("#%d", attempt), hiWhiteColor("%d", amt))
 			r.printRoute(route)
-			err = r.pay(invoice, params.Amount, route)
+			err = r.pay(invoice, amt, route)
 			if err == nil {
 				log.Print("Task complete.")
 				return

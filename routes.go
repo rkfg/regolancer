@@ -73,7 +73,7 @@ func (r *regolancer) printRoute(route *lnrpc.Route) {
 		return
 	}
 	errs := ""
-	fmt.Printf("%s %s\n", faintWhiteColor("Total fee:"), hiWhiteColor("%d", route.TotalFeesMsat-route.Hops[0].FeeMsat))
+	fmt.Printf("%s %s\n", faintWhiteColor("Total fee:"), hiWhiteColor("%d", (route.TotalFeesMsat-route.Hops[0].FeeMsat)/1000))
 	for i, hop := range route.Hops {
 		nodeInfo, err := r.getNodeInfo(hop.PubKey)
 		if err != nil {
