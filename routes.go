@@ -184,7 +184,7 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 			if goodAmount >= 0 {
 				nextAmount = amount + (goodAmount-amount)/2
 			} else {
-				nextAmount = amount + (goodAmount+amount)/2
+				nextAmount = amount - (goodAmount+amount)/2
 			}
 			log.Printf("%s is too much, lowering amount to %s, %s steps left",
 				hiWhiteColor(amount), hiWhiteColor(nextAmount), hiWhiteColor(steps-1))
