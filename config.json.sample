@@ -1,0 +1,29 @@
+{
+    "macaroon_dir": "/home/user/.lnd/data/chain/bitcoin",
+    "macaroon_filename": "admin.macaroon",
+    "network": "mainnet",
+    "tlscert": "/home/user/.lnd/tls.cert",
+    "perc": 20,
+    "econ_ratio": 0.5,
+    "amount": 100000,
+    "probe_steps": 5,
+    "pfrom": 10,
+    "pto": 30,
+    "exclude_channels_in": [
+        821913529170526209,
+        821280210377179136
+    ],
+    "exclude_channels_out": [
+        821264817346314240,
+        818108119373578240
+    ],
+    "exclude_channels": [
+        802741344926629888
+    ],
+    "exclude_nodes": [
+        "0363749dbdb99321177082935bf7c36978fc46c725c5c452d48d721ab31e7682c2",
+        "026165850492521f4ac8abd9bd8088123446d126f648ca35e60f88177dc149ceb2"
+    ],
+    "from": 824787652482170883,
+    "to": 822784342311501826
+}
