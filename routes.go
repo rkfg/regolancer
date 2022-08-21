@@ -12,6 +12,10 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 )
 
+const (
+	COIN = 1e8
+)
+
 func (r *regolancer) getChanInfo(ctx context.Context, chanId uint64) (*lnrpc.ChannelEdge, error) {
 	if c, ok := r.chanCache[chanId]; ok {
 		return c, nil
@@ -77,6 +81,27 @@ func (r *regolancer) getNodeInfo(ctx context.Context, pk string) (*lnrpc.NodeInf
 	return nodeInfo, err
 }
 
+func formatAmt(amt int64) string {
+	btc := amt / COIN
+	ms := amt % COIN / 1e6
+	ts := amt % 1e6 / 1e3
+	s := amt % 1e3
+	if btc > 0 {
+		return fmt.Sprintf("%s.%s,%s,%s", infoColorF("%d", btc), infoColorF("%02d", ms),
+			infoColorF("%03d", ts), infoColorF("%03d", s))
+	}
+	if ms > 0 {
+		return fmt.Sprintf("%s,%s,%s", infoColorF("%d", ms), infoColorF("%03d", ts), infoColorF("%03d", s))
+	}
+	if ts > 0 {
+		return fmt.Sprintf("%s,%s", infoColorF("%d", ts), infoColorF("%03d", s))
+	}
+	if s >= 0 {
+		return infoColorF("%d", s)
+	}
+	return errColor("error: ", amt)
+}
+
 func (r *regolancer) printRoute(ctx context.Context, route *lnrpc.Route) {
 	if len(route.Hops) == 0 {
 		return
@@ -93,7 +118,8 @@ func (r *regolancer) printRoute(ctx context.Context, route *lnrpc.Route) {
 		if i > 0 {
 			fee = hiWhiteColorF("%-6d", route.Hops[i-1].FeeMsat)
 		}
-		fmt.Printf("%s %s %s\n", faintWhiteColor(hop.ChanId), fee, cyanColor(nodeInfo.Node.Alias))
+		fmt.Printf("%s %s [%s|%sch|%ssat|%s]\n", faintWhiteColor(hop.ChanId), fee, cyanColor(nodeInfo.Node.Alias),
+			infoColor(nodeInfo.NumChannels), formatAmt(nodeInfo.TotalCapacity), infoColor(nodeInfo.Node.PubKey))
 	}
 	if errs != "" {
 		fmt.Println(errColor(errs))

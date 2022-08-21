@@ -8,4 +8,6 @@ var (
 	hiWhiteColorF   = color.New(color.FgHiWhite, color.Bold).SprintfFunc()
 	cyanColor       = color.New(color.FgBlue, color.Bold).SprintFunc()
 	errColor        = color.New(color.FgHiRed, color.Bold).SprintFunc()
+	infoColor       = color.New(color.FgHiYellow, color.Bold).SprintFunc()
+	infoColorF      = color.New(color.FgHiYellow, color.Bold).SprintfFunc()
 )
