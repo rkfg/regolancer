@@ -22,6 +22,7 @@ var mainParams struct {
 }
 
 var params struct {
+	Config             string   `short:"f" long:"config" description:"config file path"`
 	Connect            string   `short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect"`
 	TLSCert            string   `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert"`
 	MacaroonDir        string   `long:"macaroon.dir" description:"path to the macaroon directory" required:"false" json:"macaroon.dir"`
@@ -32,7 +33,7 @@ var params struct {
 	Perc               int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc"`
 	Amount             int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount"`
 	EconRatio          float64  `long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio"`
-	ProbeSteps         int      `short:"b" long:"probe" description:"if the payment fails at the last hop try to probe lower amount using binary search" json:"probe_steps"`
+	ProbeSteps         int      `short:"b" long:"probe" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps"`
 	ExcludeChannelsIn  []uint64 `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in"`
 	ExcludeChannelsOut []uint64 `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out"`
 	ExcludeChannels    []uint64 `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels"`
@@ -60,7 +61,7 @@ type regolancer struct {
 }
 
 func loadConfig() {
-	flags.NewParser(&mainParams, flags.Default|flags.IgnoreUnknown).Parse()
+	flags.NewParser(&mainParams, flags.PrintErrors|flags.IgnoreUnknown).Parse()
 	if mainParams.Config == "" {
 		return
 	}
