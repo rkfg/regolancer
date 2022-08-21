@@ -73,7 +73,13 @@ func loadConfig() {
 }
 
 func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoiceResponse, attempt *int) error {
-	attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Minute*30)
+	attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Minute*5)
+	defer func() {
+		if attemptCtx.Err() == context.DeadlineExceeded {
+			log.Print(errColor("Timed out"))
+		}
+		*invoice = nil // create a new invoice next time
+	}()
 	defer attemptCancel()
 	from, to, amt, err := r.pickChannelPair(attemptCtx, params.Amount)
 	if err != nil {
@@ -83,7 +89,7 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 	if params.Amount == 0 || *invoice == nil {
 		*invoice, err = r.createInvoice(attemptCtx, from, to, amt)
 		if err != nil {
-			log.Print("Error creating invoice: ", err)
+			log.Printf("Error creating invoice: %s", err)
 			return ErrRepeat
 		}
 	}
@@ -105,10 +111,10 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 			log.Printf("Trying to rebalance again with %s", hiWhiteColor(amt))
 			probedInvoice, err := r.createInvoice(attemptCtx, from, to, amt)
 			if err != nil {
-				log.Print("Error creating invoice: ", err)
+				log.Printf("Error creating invoice: %s", err)
 				return ErrRepeat
 			}
-			probedRoute, err := r.rebuildRoute(ctx, route, amt)
+			probedRoute, err := r.rebuildRoute(attemptCtx, route, amt)
 			if err != nil {
 				log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
 			} else {
