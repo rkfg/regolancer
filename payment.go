@@ -27,6 +27,8 @@ func (r *regolancer) createInvoice(ctx context.Context, from, to uint64, amount 
 }
 
 func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse, amount int64, route *lnrpc.Route, probeSteps int) error {
+	fmt.Println()
+	defer fmt.Println()
 	lastHop := route.Hops[len(route.Hops)-1]
 	lastHop.MppRecord = &lnrpc.MPPRecord{
 		PaymentAddr:  invoice.PaymentAddr,
@@ -57,7 +59,7 @@ func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse,
 		} else {
 			node2name = node2.Node.Alias
 		}
-		fmt.Printf("\n%s %s ⇒ %s\n\n", faintWhiteColor(result.Failure.Code.String()),
+		log.Printf("%s %s ⇒ %s", faintWhiteColor(result.Failure.Code.String()),
 			cyanColor(node1name), cyanColor(node2name))
 		if int(result.Failure.FailureSourceIndex) == len(route.Hops)-2 && probeSteps > 0 {
 			fmt.Println("Probing route...")
