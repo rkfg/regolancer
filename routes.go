@@ -58,6 +58,7 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 		AmtMsat:           amtMsat,
 		UseMissionControl: true,
 		FeeLimit:          &lnrpc.FeeLimit{Limit: &lnrpc.FeeLimit_FixedMsat{FixedMsat: feeMsat}},
+		IgnoredNodes:      r.excludeNodes,
 	})
 	if err != nil {
 		return nil, 0, err
@@ -211,4 +212,15 @@ func (r *regolancer) addFailedRoute(from, to uint64) {
 func (r *regolancer) isFailedRoute(from, to uint64) bool {
 	_, ok := r.failureCache[fmt.Sprintf("%d-%d", from, to)]
 	return ok
+}
+
+func (r *regolancer) makeNodeList(nodes []string) error {
+	for _, nid := range nodes {
+		pk, err := hex.DecodeString(nid)
+		if err != nil {
+			return err
+		}
+		r.excludeNodes = append(r.excludeNodes, pk)
+	}
+	return nil
 }

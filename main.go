@@ -22,18 +22,21 @@ var mainParams struct {
 }
 
 var params struct {
-	Connect          string   `short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect"`
-	TLSCert          string   `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert"`
-	MacaroonDir      string   `long:"macaroon.dir" description:"path to the macaroon directory" required:"false" json:"macaroon.dir"`
-	MacaroonFilename string   `long:"macaroon.filename" description:"macaroon filename" json:"macaroon.filename"`
-	Network          string   `short:"n" long:"network" description:"bitcoin network to use" json:"network"`
-	FromPerc         int64    `long:"pfrom" description:"channels with less than this inbound liquidity percentage will be considered as source channels" json:"pfrom"`
-	ToPerc           int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto"`
-	Perc             int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc"`
-	Amount           int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount"`
-	EconRatio        float64  `long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio"`
-	ProbeSteps       int      `short:"b" long:"probe" description:"if the payment fails at the last hop try to probe lower amount using binary search" json:"probe_steps"`
-	ExcludeChannels  []uint64 `short:"e" long:"exclude-channel" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels"`
+	Connect            string   `short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect"`
+	TLSCert            string   `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert"`
+	MacaroonDir        string   `long:"macaroon.dir" description:"path to the macaroon directory" required:"false" json:"macaroon.dir"`
+	MacaroonFilename   string   `long:"macaroon.filename" description:"macaroon filename" json:"macaroon.filename"`
+	Network            string   `short:"n" long:"network" description:"bitcoin network to use" json:"network"`
+	FromPerc           int64    `long:"pfrom" description:"channels with less than this inbound liquidity percentage will be considered as source channels" json:"pfrom"`
+	ToPerc             int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto"`
+	Perc               int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc"`
+	Amount             int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount"`
+	EconRatio          float64  `long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio"`
+	ProbeSteps         int      `short:"b" long:"probe" description:"if the payment fails at the last hop try to probe lower amount using binary search" json:"probe_steps"`
+	ExcludeChannelsIn  []uint64 `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in"`
+	ExcludeChannelsOut []uint64 `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out"`
+	ExcludeChannels    []uint64 `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels"`
+	ExcludeNodes       []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes"`
 }
 
 type regolancer struct {
@@ -46,6 +49,10 @@ type regolancer struct {
 	nodeCache    map[string]*lnrpc.NodeInfo
 	chanCache    map[uint64]*lnrpc.ChannelEdge
 	failureCache map[string]*time.Time
+	excludeIn    map[uint64]struct{}
+	excludeOut   map[uint64]struct{}
+	excludeBoth  map[uint64]struct{}
+	excludeNodes [][]byte
 }
 
 func loadConfig() {
@@ -171,7 +178,14 @@ func main() {
 	if err != nil {
 		log.Fatal("Error listing own channels: ", err)
 	}
-	err = r.getChannelCandidates(params.FromPerc, params.ToPerc, params.Amount, params.ExcludeChannels)
+	r.excludeIn = makeChanSet(params.ExcludeChannelsIn)
+	r.excludeOut = makeChanSet(params.ExcludeChannelsOut)
+	r.excludeBoth = makeChanSet(params.ExcludeChannels)
+	err = r.makeNodeList(params.ExcludeNodes)
+	if err != nil {
+		log.Fatal("Error parsing excluded node list: ", err)
+	}
+	err = r.getChannelCandidates(params.FromPerc, params.ToPerc, params.Amount)
 	if err != nil {
 		log.Fatal("Error choosing channels: ", err)
 	}

@@ -20,17 +20,27 @@ func (r *regolancer) getChannels(ctx context.Context) error {
 	return nil
 }
 
-func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64, ignore []uint64) error {
-	ignoredSet := map[uint64]struct{}{}
-	for _, cid := range ignore {
-		ignoredSet[cid] = struct{}{}
+func makeChanSet(chanIds []uint64) (result map[uint64]struct{}) {
+	result = map[uint64]struct{}{}
+	for _, cid := range chanIds {
+		result[cid] = struct{}{}
 	}
+	return
+}
+
+func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error {
 	for _, c := range r.channels {
+		if _, ok := r.excludeBoth[c.ChanId]; ok {
+			continue
+		}
 		if c.LocalBalance < c.Capacity*toPerc/100 && c.LocalBalance+amount < c.Capacity/2 {
+			if _, ok := r.excludeIn[c.ChanId]; ok {
+				continue
+			}
 			r.toChannels = append(r.toChannels, c)
 		}
 		if c.RemoteBalance < c.Capacity*fromPerc/100 && c.RemoteBalance-amount < c.Capacity/2 {
-			if _, ok := ignoredSet[c.ChanId]; ok {
+			if _, ok := r.excludeOut[c.ChanId]; ok {
 				continue
 			}
 			r.fromChannels = append(r.fromChannels, c)
