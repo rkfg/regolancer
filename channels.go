@@ -37,13 +37,17 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 			if _, ok := r.excludeIn[c.ChanId]; ok {
 				continue
 			}
-			r.toChannels = append(r.toChannels, c)
+			if r.toChannelId == 0 || r.toChannelId == c.ChanId {
+				r.toChannels = append(r.toChannels, c)
+			}
 		}
 		if c.RemoteBalance < c.Capacity*fromPerc/100 && c.RemoteBalance-amount < c.Capacity/2 {
 			if _, ok := r.excludeOut[c.ChanId]; ok {
 				continue
 			}
-			r.fromChannels = append(r.fromChannels, c)
+			if r.fromChannelId == 0 || r.fromChannelId == c.ChanId {
+				r.fromChannels = append(r.fromChannels, c)
+			}
 		}
 	}
 	return nil

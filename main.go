@@ -37,22 +37,26 @@ var params struct {
 	ExcludeChannelsOut []uint64 `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out"`
 	ExcludeChannels    []uint64 `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels"`
 	ExcludeNodes       []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes"`
+	ToChannel          uint64   `long:"to" description:"try only this channel as target (should satisfy other constraints too)" json:"to"`
+	FromChannel        uint64   `long:"from" description:"try only this channel as source (should satisfy other constraints too)" json:"from"`
 }
 
 type regolancer struct {
-	lnClient     lnrpc.LightningClient
-	routerClient routerrpc.RouterClient
-	myPK         string
-	channels     []*lnrpc.Channel
-	fromChannels []*lnrpc.Channel
-	toChannels   []*lnrpc.Channel
-	nodeCache    map[string]*lnrpc.NodeInfo
-	chanCache    map[uint64]*lnrpc.ChannelEdge
-	failureCache map[string]*time.Time
-	excludeIn    map[uint64]struct{}
-	excludeOut   map[uint64]struct{}
-	excludeBoth  map[uint64]struct{}
-	excludeNodes [][]byte
+	lnClient      lnrpc.LightningClient
+	routerClient  routerrpc.RouterClient
+	myPK          string
+	channels      []*lnrpc.Channel
+	fromChannels  []*lnrpc.Channel
+	fromChannelId uint64
+	toChannels    []*lnrpc.Channel
+	toChannelId   uint64
+	nodeCache     map[string]*lnrpc.NodeInfo
+	chanCache     map[uint64]*lnrpc.ChannelEdge
+	failureCache  map[string]*time.Time
+	excludeIn     map[uint64]struct{}
+	excludeOut    map[uint64]struct{}
+	excludeBoth   map[uint64]struct{}
+	excludeNodes  [][]byte
 }
 
 func loadConfig() {
@@ -183,6 +187,12 @@ func main() {
 	err = r.getChannels(infoCtx)
 	if err != nil {
 		log.Fatal("Error listing own channels: ", err)
+	}
+	if params.FromChannel > 0 {
+		r.fromChannelId = params.FromChannel
+	}
+	if params.ToChannel > 0 {
+		r.toChannelId = params.ToChannel
 	}
 	r.excludeIn = makeChanSet(params.ExcludeChannelsIn)
 	r.excludeOut = makeChanSet(params.ExcludeChannelsOut)
