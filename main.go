@@ -219,12 +219,12 @@ func main() {
 		attemptCancel()
 		if attemptCtx.Err() == context.DeadlineExceeded {
 			log.Print(errColor("Attempt timed out"))
+			invoice = nil // create a new invoice next time
 		}
 		if mainCtx.Err() == context.DeadlineExceeded {
 			log.Println(errColor("Rebalancing timed out"))
 			return
 		}
-		invoice = nil // create a new invoice next time
 		if !retry {
 			return
 		}
