@@ -75,9 +75,11 @@ to estimate the best amount in a few steps. Note, however, that the smallest
 amount can be 2<sup>n</sup> times less than you planned to rebalance (where `n`
 is the number of steps during probing). For example, 5 steps and 1,000,000 sats
 amount mean that you might rebalance at least 1000000/2<sup>5</sup> = 31250 sats
-if the probe succeeds. Another problem is that fees can become too high for
-smaller amounts because of the base fee that starts dominating the fee
-structure. It's handled properly, however.
+if the probe succeeds. You can override this minimum with `--min-amount` so that
+probing begins with this amount instead and either goes up or fails immediately.
+Another problem is that fees can become too high for smaller amounts because of
+the base fee that starts dominating the fee structure. It's handled properly,
+however.
 
 When enabled, probing starts if the payment fails at the second to last channel.
 The last channel comes to yourself so you know it's guaranteed to accept the
