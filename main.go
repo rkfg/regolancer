@@ -76,12 +76,6 @@ func loadConfig() {
 
 func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoiceResponse,
 	attempt *int) (err error, repeat bool) {
-	defer func() {
-		if ctx.Err() == context.DeadlineExceeded {
-			log.Print(errColor("Timed out"))
-		}
-		*invoice = nil // create a new invoice next time
-	}()
 	routeCtx, routeCtxCancel := context.WithTimeout(ctx, time.Second*30)
 	defer routeCtxCancel()
 	from, to, amt, err := r.pickChannelPair(routeCtx, params.Amount)
@@ -180,9 +174,10 @@ func main() {
 	}
 	r.lnClient = lnrpc.NewLightningClient(conn)
 	r.routerClient = routerrpc.NewRouterClient(conn)
-	mainCtx, cancel := context.WithTimeout(context.Background(), time.Hour*6)
-	defer cancel()
-	infoCtx, infoCancel := context.WithTimeout(mainCtx, time.Second*30)
+	mainCtx, mainCtxCancel := context.WithTimeout(context.Background(), time.Hour*6)
+	defer mainCtxCancel()
+	infoCtx, infoCtxCancel := context.WithTimeout(mainCtx, time.Second*30)
+	defer infoCtxCancel()
 	info, err := r.lnClient.GetInfo(infoCtx, &lnrpc.GetInfoRequest{})
 	if err != nil {
 		log.Fatal(err)
@@ -215,19 +210,21 @@ func main() {
 	if len(r.toChannels) == 0 {
 		log.Fatal("No target channels selected")
 	}
-	infoCancel()
+	infoCtxCancel()
 	var invoice *lnrpc.AddInvoiceResponse
 	attempt := 1
 	for {
-		select {
-		case <-mainCtx.Done():
-			log.Println(errColor("Rebalancing timed out"))
-			return
-		default:
-		}
 		attemptCtx, attemptCancel := context.WithTimeout(mainCtx, time.Minute*5)
 		_, retry := tryRebalance(attemptCtx, &r, &invoice, &attempt)
 		attemptCancel()
+		if attemptCtx.Err() == context.DeadlineExceeded {
+			log.Print(errColor("Attempt timed out"))
+		}
+		if mainCtx.Err() == context.DeadlineExceeded {
+			log.Println(errColor("Rebalancing timed out"))
+			return
+		}
+		invoice = nil // create a new invoice next time
 		if !retry {
 			return
 		}
