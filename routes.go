@@ -146,6 +146,15 @@ func (r *regolancer) rebuildRoute(ctx context.Context, route *lnrpc.Route, amoun
 
 func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmount, badAmount, amount int64,
 	steps int, ratio float64) (maxAmount int64, err error) {
+	if amount == badAmount || amount == goodAmount || amount == -goodAmount {
+		bestAmount := hiWhiteColor(goodAmount)
+		if goodAmount <= 0 {
+			bestAmount = hiWhiteColor("unknown")
+			goodAmount = 0
+		}
+		log.Printf("Best amount is %s", bestAmount)
+		return goodAmount, nil
+	}
 	probedRoute, err := r.rebuildRoute(ctx, route, amount)
 	if err != nil {
 		return 0, err
@@ -155,23 +164,13 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 		return 0, err
 	}
 	if probedRoute.TotalFeesMsat > maxFeeMsat {
-		if steps == 1 {
-			bestAmount := hiWhiteColor(goodAmount)
-			if goodAmount <= 0 {
-				bestAmount = hiWhiteColor("unknown")
-				goodAmount = 0
-			}
-			log.Printf("%s requires too high fee %s (max allowed is %s), best amount is %s", hiWhiteColor(amount),
-				hiWhiteColor(probedRoute.TotalFeesMsat/1000), hiWhiteColor(maxFeeMsat/1000), bestAmount)
-			return goodAmount, nil
-		}
 		nextAmount := amount + (badAmount-amount)/2
-		log.Printf("%s requires too high fee %s (max allowed is %s), increasing amount to %s, %s steps left",
+		log.Printf("%s requires too high fee %s (max allowed is %s), increasing amount to %s",
 			hiWhiteColor(amount), hiWhiteColor(probedRoute.TotalFeesMsat/1000), hiWhiteColor(maxFeeMsat/1000),
-			hiWhiteColor(nextAmount), hiWhiteColor(steps-1))
+			hiWhiteColor(nextAmount))
 		// returning negative amount as "good", it's a special case which means this is
 		// rather the lower bound and the actual good amount is still unknown
-		return r.probeRoute(ctx, route, -amount, badAmount, nextAmount, steps-1, ratio)
+		return r.probeRoute(ctx, route, -amount, badAmount, nextAmount, steps, ratio)
 	}
 	fakeHash := make([]byte, 32)
 	rand.Read(fakeHash)
@@ -188,7 +187,7 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 	}
 	if result.Status == lnrpc.HTLCAttempt_FAILED {
 		if result.Failure.Code == lnrpc.Failure_INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS { // payment can succeed
-			if steps == 1 || amount == badAmount {
+			if steps == 1 {
 				log.Printf("best amount is %s", hiWhiteColor(amount))
 				return amount, nil
 			}
