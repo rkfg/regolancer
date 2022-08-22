@@ -26,7 +26,8 @@ func (r *regolancer) createInvoice(ctx context.Context, from, to uint64, amount 
 		Expiry: int64(time.Hour.Seconds() * 24)})
 }
 
-func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse, amount int64, route *lnrpc.Route, probeSteps int) error {
+func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse, amount int64,
+	minAmount int64, route *lnrpc.Route, probeSteps int) error {
 	fmt.Println()
 	defer fmt.Println()
 	lastHop := route.Hops[len(route.Hops)-1]
@@ -63,7 +64,13 @@ func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse,
 			cyanColor(node1name), cyanColor(node2name))
 		if int(result.Failure.FailureSourceIndex) == len(route.Hops)-2 && probeSteps > 0 {
 			fmt.Println("Probing route...")
-			maxAmount, err := r.probeRoute(ctx, route, 0, amount, amount/2, probeSteps, params.EconRatio)
+			min := int64(0)
+			start := amount / 2
+			if minAmount > 0 && minAmount < amount {
+				min = -minAmount - 1
+				start = minAmount
+			}
+			maxAmount, err := r.probeRoute(ctx, route, min, amount, start, probeSteps, params.EconRatio)
 			if err != nil {
 				return err
 			}

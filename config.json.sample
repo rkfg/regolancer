@@ -6,6 +6,7 @@
     "perc": 20,
     "econ_ratio": 0.5,
     "amount": 100000,
+    "min_amount": 50000,
     "probe_steps": 5,
     "pfrom": 10,
     "pto": 30,

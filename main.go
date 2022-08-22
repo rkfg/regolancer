@@ -31,6 +31,7 @@ var params struct {
 	Amount             int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount"`
 	EconRatio          float64  `long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio"`
 	ProbeSteps         int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps"`
+	MinAmount          int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount"`
 	ExcludeChannelsIn  []uint64 `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in"`
 	ExcludeChannelsOut []uint64 `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out"`
 	ExcludeChannels    []uint64 `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels"`
@@ -104,7 +105,7 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 		log.Printf("Attempt %s, amount: %s (max fee: %s)", hiWhiteColorF("#%d", *attempt),
 			hiWhiteColor(amt), hiWhiteColor(fee/1000))
 		r.printRoute(ctx, route)
-		err = r.pay(ctx, *invoice, amt, route, params.ProbeSteps)
+		err = r.pay(ctx, *invoice, amt, params.MinAmount, route, params.ProbeSteps)
 		if err == nil {
 			return nil, false
 		}
@@ -120,7 +121,7 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 			if err != nil {
 				log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
 			} else {
-				err = r.pay(ctx, probedInvoice, amt, probedRoute, 0)
+				err = r.pay(ctx, probedInvoice, amt, 0, probedRoute, 0)
 				if err == nil {
 					return nil, false
 				} else {
@@ -161,6 +162,9 @@ func main() {
 	if params.Perc > 0 {
 		params.FromPerc = params.Perc
 		params.ToPerc = params.Perc
+	}
+	if params.MinAmount > 0 && params.MinAmount > params.Amount {
+		log.Fatal("Minimum amount should be more than amount")
 	}
 	conn, err := lndclient.NewBasicConn(params.Connect, params.TLSCert, params.MacaroonDir, params.Network,
 		lndclient.MacFilename(params.MacaroonFilename))

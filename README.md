@@ -48,6 +48,7 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
   -a, --amount=              amount to rebalance
       --econ-ratio=          economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)
   -b, --probe=               if the payment fails at the last hop try to probe lower amount using binary search
+      --min-amount=          if probing is enabled this will be the minimum amount to try
   -i, --exclude-channel-in=  don't use this channel as incoming (can be specified multiple times)
   -o, --exclude-channel-out= don't use this channel as outgoing (can be specified multiple times)
   -e, --exclude-channel=     don't use this channel at all (can be specified multiple times)
