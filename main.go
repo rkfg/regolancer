@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"math/rand"
 	"os"
@@ -14,8 +13,6 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 )
-
-var ErrRepeat = fmt.Errorf("repeat")
 
 var mainParams struct {
 	Config string `short:"f" long:"config" description:"config file path"`
@@ -77,55 +74,61 @@ func loadConfig() {
 	}
 }
 
-func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoiceResponse, attempt *int) error {
-	attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Minute*5)
+func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoiceResponse,
+	attempt *int) (err error, repeat bool) {
 	defer func() {
-		if attemptCtx.Err() == context.DeadlineExceeded {
+		if ctx.Err() == context.DeadlineExceeded {
 			log.Print(errColor("Timed out"))
 		}
 		*invoice = nil // create a new invoice next time
 	}()
-	defer attemptCancel()
-	from, to, amt, err := r.pickChannelPair(attemptCtx, params.Amount)
+	routeCtx, routeCtxCancel := context.WithTimeout(ctx, time.Second*30)
+	defer routeCtxCancel()
+	from, to, amt, err := r.pickChannelPair(routeCtx, params.Amount)
 	if err != nil {
-		log.Printf("Error during picking channel: %s", err)
-		return ErrRepeat
+		log.Printf(errColor("Error during picking channel: %s"), err)
+		return err, false
 	}
+	routes, fee, err := r.getRoutes(routeCtx, from, to, amt*1000, params.EconRatio)
+	if err != nil {
+		if routeCtx.Err() == context.DeadlineExceeded {
+			log.Print(errColor("Timed out looking for a route"))
+			return err, false
+		}
+		r.addFailedRoute(from, to)
+		return err, true
+	}
+	routeCtxCancel()
 	if params.Amount == 0 || *invoice == nil {
-		*invoice, err = r.createInvoice(attemptCtx, from, to, amt)
+		*invoice, err = r.createInvoice(ctx, from, to, amt)
 		if err != nil {
 			log.Printf("Error creating invoice: %s", err)
-			return ErrRepeat
+			return err, true
 		}
-	}
-	routes, fee, err := r.getRoutes(attemptCtx, from, to, amt*1000, params.EconRatio)
-	if err != nil {
-		r.addFailedRoute(from, to)
-		return ErrRepeat
 	}
 	for _, route := range routes {
 		log.Printf("Attempt %s, amount: %s (max fee: %s)", hiWhiteColorF("#%d", *attempt),
 			hiWhiteColor(amt), hiWhiteColor(fee/1000))
-		r.printRoute(attemptCtx, route)
-		err = r.pay(attemptCtx, *invoice, amt, route, params.ProbeSteps)
+		r.printRoute(ctx, route)
+		err = r.pay(ctx, *invoice, amt, route, params.ProbeSteps)
 		if err == nil {
-			return nil
+			return nil, false
 		}
 		if retryErr, ok := err.(ErrRetry); ok {
 			amt = retryErr.amount
 			log.Printf("Trying to rebalance again with %s", hiWhiteColor(amt))
-			probedInvoice, err := r.createInvoice(attemptCtx, from, to, amt)
+			probedInvoice, err := r.createInvoice(ctx, from, to, amt)
 			if err != nil {
 				log.Printf("Error creating invoice: %s", err)
-				return ErrRepeat
+				return err, true
 			}
-			probedRoute, err := r.rebuildRoute(attemptCtx, route, amt)
+			probedRoute, err := r.rebuildRoute(ctx, route, amt)
 			if err != nil {
 				log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
 			} else {
-				err = r.pay(attemptCtx, probedInvoice, amt, probedRoute, 0)
+				err = r.pay(ctx, probedInvoice, amt, probedRoute, 0)
 				if err == nil {
-					return nil
+					return nil, false
 				} else {
 					log.Printf("Probed rebalance failed with error: %s", errColor(err))
 				}
@@ -133,7 +136,7 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 		}
 		*attempt++
 	}
-	return ErrRepeat
+	return nil, true
 }
 
 func main() {
@@ -218,16 +221,15 @@ func main() {
 	for {
 		select {
 		case <-mainCtx.Done():
-			log.Println("Rebalancing timed out")
+			log.Println(errColor("Rebalancing timed out"))
 			return
 		default:
 		}
-		err = tryRebalance(mainCtx, &r, &invoice, &attempt)
-		if err == nil {
+		attemptCtx, attemptCancel := context.WithTimeout(mainCtx, time.Minute*5)
+		_, retry := tryRebalance(attemptCtx, &r, &invoice, &attempt)
+		attemptCancel()
+		if !retry {
 			return
-		}
-		if err != ErrRepeat {
-			log.Println(err)
 		}
 	}
 }
