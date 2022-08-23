@@ -13,6 +13,8 @@ instead so it can be easily compiled and used anywhere. I also made the output
 pretty, close to the design of [accumulator's fork of
 rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
 
+![screenshot](screenshot.png)
+
 # Features
 
 - automatically pick source and target channel by local/remote liquidity ratio
