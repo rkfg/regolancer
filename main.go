@@ -77,13 +77,16 @@ func loadConfig() {
 
 func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoiceResponse,
 	attempt *int) (err error, repeat bool) {
-	routeCtx, routeCtxCancel := context.WithTimeout(ctx, time.Second*30)
-	defer routeCtxCancel()
-	from, to, amt, err := r.pickChannelPair(routeCtx, params.Amount)
+	// purely local code with no RPC requests, should never take long unless all routes already failed
+	pickCtx, pickCtxCancel := context.WithTimeout(ctx, time.Second*5)
+	defer pickCtxCancel()
+	from, to, amt, err := r.pickChannelPair(pickCtx, params.Amount)
 	if err != nil {
 		log.Printf(errColor("Error during picking channel: %s"), err)
 		return err, false
 	}
+	routeCtx, routeCtxCancel := context.WithTimeout(ctx, time.Second*30)
+	defer routeCtxCancel()
 	routes, fee, err := r.getRoutes(routeCtx, from, to, amt*1000, params.EconRatio)
 	if err != nil {
 		if routeCtx.Err() == context.DeadlineExceeded {
