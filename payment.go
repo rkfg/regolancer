@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
@@ -83,6 +84,20 @@ func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse,
 		return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(), result.Failure.FailureSourceIndex)
 	} else {
 		log.Printf("Success! Paid %s in fees", hiWhiteColor(result.Route.TotalFeesMsat/1000))
+		if r.statFilename != "" {
+			_, err := os.Stat(r.statFilename)
+			f, ferr := os.OpenFile(r.statFilename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+			if ferr != nil {
+				log.Print(errColorF("Error saving rebalance stats to %s: %s", r.statFilename, ferr))
+				return nil
+			}
+			defer f.Close()
+			if os.IsNotExist(err) {
+				f.WriteString("timestamp,from_channel,to_channel,amount_msat,fees_msat\n")
+			}
+			f.Write([]byte(fmt.Sprintf("%d,%d,%d,%d,%d\n", time.Now().Unix(), route.Hops[0].ChanId,
+				lastHop.ChanId, route.TotalAmtMsat-route.TotalFeesMsat, route.TotalFeesMsat)))
+		}
 		return nil
 	}
 }

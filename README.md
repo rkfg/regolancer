@@ -57,6 +57,7 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
   -d, --exclude-node=        don't use this node for routing (can be specified multiple times)
       --to=                  try only this channel as target (should satisfy other constraints too)
       --from=                try only this channel as source (should satisfy other constraints too)
+  -s, --stat=                save successful rebalance information to the specified CSV file
 ```
 
 Look in `config.json.sample` for corresponding JSON keys, they're not exactly

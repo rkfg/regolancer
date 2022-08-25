@@ -38,6 +38,7 @@ var params struct {
 	ExcludeNodes       []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes"`
 	ToChannel          uint64   `long:"to" description:"try only this channel as target (should satisfy other constraints too)" json:"to"`
 	FromChannel        uint64   `long:"from" description:"try only this channel as source (should satisfy other constraints too)" json:"from"`
+	StatFilename       string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat"`
 }
 
 type regolancer struct {
@@ -56,6 +57,7 @@ type regolancer struct {
 	excludeOut    map[uint64]struct{}
 	excludeBoth   map[uint64]struct{}
 	excludeNodes  [][]byte
+	statFilename  string
 }
 
 func loadConfig() {
@@ -178,6 +180,7 @@ func main() {
 		nodeCache:    map[string]*lnrpc.NodeInfo{},
 		chanCache:    map[uint64]*lnrpc.ChannelEdge{},
 		failureCache: map[string]*time.Time{},
+		statFilename: params.StatFilename,
 	}
 	r.lnClient = lnrpc.NewLightningClient(conn)
 	r.routerClient = routerrpc.NewRouterClient(conn)
