@@ -62,7 +62,8 @@ func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse,
 		}
 		log.Printf("%s %s ⇒ %s", faintWhiteColor(result.Failure.Code.String()),
 			cyanColor(node1name), cyanColor(node2name))
-		if int(result.Failure.FailureSourceIndex) == len(route.Hops)-2 && probeSteps > 0 {
+		if probeSteps > 0 && int(result.Failure.FailureSourceIndex) == len(route.Hops)-2 &&
+			result.Failure.Code == lnrpc.Failure_TEMPORARY_CHANNEL_FAILURE {
 			fmt.Println("Probing route...")
 			min := int64(0)
 			start := amount / 2
