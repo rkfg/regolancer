@@ -1,4 +1,4 @@
-module rkfg.me/regolancer
+module github.com/rkfg/regolancer
 
 go 1.18
 
