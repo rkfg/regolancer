@@ -66,6 +66,17 @@ defined in both config and CLI, the CLI parameters take priority. Connect,
 macaroon and tls settings can be omitted if you have a default `lnd`
 installation.
 
+# Installing
+
+You need to have Go SDK installed, then simply run `go install
+github.com/rkfg/regolancer@latest` and by default it will download, compile and
+build the binary in `~/go/bin/regolancer`. To crosscompile for other platforms
+use `GOARCH` and `GOOS` env vars to choose the target architecture and OS. For
+RPi run it as `GOARCH=arm64 go install github.com/rkfg/regolancer@latest` if you
+run a 64 bit system (and you should!). You'll find the binaries in
+`~/go/bin/linux_arm64`. For 32 bit use `GOARCH=arm`, the binary will be located
+in `~/go/bin/linux_arm`.
+
 # Probing
 
 This is an obscure feature that `bos` uses in rebalances, it relies on protocol
