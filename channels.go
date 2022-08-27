@@ -2,12 +2,18 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 	"math/rand"
 	"time"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
 )
+
+func formatChannelPair(a, b uint64) string {
+	return fmt.Sprintf("%d-%d", a, b)
+}
 
 func (r *regolancer) getChannels(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
@@ -50,6 +56,12 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 			}
 		}
 	}
+	for _, fc := range r.fromChannels {
+		for _, tc := range r.toChannels {
+			pair := [2]*lnrpc.Channel{fc, tc}
+			r.channelPairs[formatChannelPair(pair[0].ChanId, pair[1].ChanId)] = pair
+		}
+	}
 	return nil
 }
 
@@ -63,22 +75,21 @@ func min(args ...int64) (result int64) {
 	return
 }
 
-func (r *regolancer) pickChannelPair(ctx context.Context, amount int64) (from uint64, to uint64, maxAmount int64, err error) {
+func (r *regolancer) pickChannelPair(amount int64) (from uint64, to uint64, maxAmount int64, err error) {
+	if len(r.channelPairs) == 0 {
+		return 0, 0, 0, errors.New("no routes")
+	}
 	var fromChan, toChan *lnrpc.Channel
-	for {
-		select {
-		case <-ctx.Done():
-			return 0, 0, 0, ctx.Err()
-		default:
-		}
-		fromIdx := rand.Int31n(int32(len(r.fromChannels)))
-		toIdx := rand.Int31n(int32(len(r.toChannels)))
-		fromChan = r.fromChannels[fromIdx]
-		toChan = r.toChannels[toIdx]
-		if !r.isFailedRoute(fromChan.ChanId, toChan.ChanId) {
+	idx := rand.Int31n(int32(len(r.channelPairs)))
+	var pair [2]*lnrpc.Channel
+	for _, pair = range r.channelPairs {
+		if idx == 0 {
 			break
 		}
+		idx--
 	}
+	fromChan = pair[0]
+	toChan = pair[1]
 	maxFrom := fromChan.Capacity/2 - fromChan.RemoteBalance
 	maxTo := toChan.Capacity/2 - toChan.LocalBalance
 	if amount == 0 {
@@ -86,5 +97,18 @@ func (r *regolancer) pickChannelPair(ctx context.Context, amount int64) (from ui
 	} else {
 		maxAmount = min(maxFrom, maxTo, amount)
 	}
+	for k, v := range r.failureCache {
+		if v.expiration.Before(time.Now()) {
+			r.channelPairs[k] = v.channelPair
+			delete(r.failureCache, k)
+		}
+	}
 	return fromChan.ChanId, toChan.ChanId, maxAmount, nil
+}
+
+func (r *regolancer) addFailedRoute(from, to uint64) {
+	t := time.Now().Add(time.Hour)
+	k := formatChannelPair(from, to)
+	r.failureCache[k] = failedRoute{channelPair: r.channelPairs[k], expiration: &t}
+	delete(r.channelPairs, k)
 }

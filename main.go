@@ -41,6 +41,11 @@ var params struct {
 	StatFilename       string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat"`
 }
 
+type failedRoute struct {
+	channelPair [2]*lnrpc.Channel
+	expiration  *time.Time
+}
+
 type regolancer struct {
 	lnClient      lnrpc.LightningClient
 	routerClient  routerrpc.RouterClient
@@ -50,9 +55,10 @@ type regolancer struct {
 	fromChannelId uint64
 	toChannels    []*lnrpc.Channel
 	toChannelId   uint64
+	channelPairs  map[string][2]*lnrpc.Channel
 	nodeCache     map[string]*lnrpc.NodeInfo
 	chanCache     map[uint64]*lnrpc.ChannelEdge
-	failureCache  map[string]*time.Time
+	failureCache  map[string]failedRoute
 	excludeIn     map[uint64]struct{}
 	excludeOut    map[uint64]struct{}
 	excludeBoth   map[uint64]struct{}
@@ -79,10 +85,7 @@ func loadConfig() {
 
 func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoiceResponse,
 	attempt *int) (err error, repeat bool) {
-	// purely local code with no RPC requests, should never take long unless all routes already failed
-	pickCtx, pickCtxCancel := context.WithTimeout(ctx, time.Second*5)
-	defer pickCtxCancel()
-	from, to, amt, err := r.pickChannelPair(pickCtx, params.Amount)
+	from, to, amt, err := r.pickChannelPair(params.Amount)
 	if err != nil {
 		log.Printf(errColor("Error during picking channel: %s"), err)
 		return err, false
@@ -179,7 +182,8 @@ func main() {
 	r := regolancer{
 		nodeCache:    map[string]*lnrpc.NodeInfo{},
 		chanCache:    map[uint64]*lnrpc.ChannelEdge{},
-		failureCache: map[string]*time.Time{},
+		channelPairs: map[string][2]*lnrpc.Channel{},
+		failureCache: map[string]failedRoute{},
 		statFilename: params.StatFilename,
 	}
 	r.lnClient = lnrpc.NewLightningClient(conn)

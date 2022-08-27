@@ -224,21 +224,6 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route, goodAmo
 	return 0, fmt.Errorf("unknown error: %+v", result)
 }
 
-func (r *regolancer) addFailedRoute(from, to uint64) {
-	t := time.Now().Add(time.Hour)
-	r.failureCache[fmt.Sprintf("%d-%d", from, to)] = &t
-	for k, v := range r.failureCache {
-		if v.Before(time.Now()) {
-			delete(r.failureCache, k)
-		}
-	}
-}
-
-func (r *regolancer) isFailedRoute(from, to uint64) bool {
-	_, ok := r.failureCache[fmt.Sprintf("%d-%d", from, to)]
-	return ok
-}
-
 func (r *regolancer) makeNodeList(nodes []string) error {
 	for _, nid := range nodes {
 		pk, err := hex.DecodeString(nid)
