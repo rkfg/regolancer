@@ -107,7 +107,7 @@ func (r *regolancer) pickChannelPair(amount int64) (from uint64, to uint64, maxA
 }
 
 func (r *regolancer) addFailedRoute(from, to uint64) {
-	t := time.Now().Add(time.Hour)
+	t := time.Now().Add(time.Minute * 5)
 	k := formatChannelPair(from, to)
 	r.failureCache[k] = failedRoute{channelPair: r.channelPairs[k], expiration: &t}
 	delete(r.channelPairs, k)
