@@ -46,8 +46,8 @@ func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse,
 	}
 	if result.Status == lnrpc.HTLCAttempt_FAILED {
 		if result.Failure.FailureSourceIndex >= uint32(len(route.Hops)) {
-			log.Printf(errColorF("%s (unexpected hop index %d, should be less than %d)", result.Failure.Code.String(),
-				result.Failure.FailureSourceIndex), len(route.Hops))
+			log.Print(errColorF("%s (unexpected hop index %d, should be less than %d)", result.Failure.Code.String(),
+				result.Failure.FailureSourceIndex, len(route.Hops)))
 			return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(),
 				result.Failure.FailureSourceIndex)
 		}
