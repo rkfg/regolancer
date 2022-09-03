@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"time"
@@ -77,7 +78,16 @@ func min(args ...int64) (result int64) {
 
 func (r *regolancer) pickChannelPair(amount int64) (from uint64, to uint64, maxAmount int64, err error) {
 	if len(r.channelPairs) == 0 {
-		return 0, 0, 0, errors.New("no routes")
+		if !r.routeFound {
+			return 0, 0, 0, errors.New("no routes")
+		}
+		log.Print(errColor("No channel pairs left, expiring all failed routes"))
+		// expire all failed routes
+		for k, v := range r.failureCache {
+			r.channelPairs[k] = v.channelPair
+			delete(r.failureCache, k)
+		}
+		r.routeFound = false
 	}
 	var fromChan, toChan *lnrpc.Channel
 	idx := rand.Int31n(int32(len(r.channelPairs)))

@@ -67,6 +67,7 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 	if err != nil {
 		return nil, 0, err
 	}
+	r.routeFound = true
 	return routes.Routes, feeMsat, nil
 }
 

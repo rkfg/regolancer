@@ -64,6 +64,7 @@ type regolancer struct {
 	excludeBoth   map[uint64]struct{}
 	excludeNodes  [][]byte
 	statFilename  string
+	routeFound    bool
 }
 
 func loadConfig() {
