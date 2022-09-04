@@ -3,6 +3,7 @@ module github.com/rkfg/regolancer
 go 1.18
 
 require (
+	github.com/fatih/color v1.13.0
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/lightninglabs/lndclient v0.15.1-0
 	github.com/lightningnetwork/lnd v0.15.1-beta.rc1
@@ -38,7 +39,6 @@ require (
 	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/dvyukov/go-fuzz v0.0.0-20210602112143-b1f3d6f4ef4e // indirect
-	github.com/fatih/color v1.13.0 // indirect
 	github.com/fergusstrange/embedded-postgres v1.10.0 // indirect
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/go-errors/errors v1.0.1 // indirect
