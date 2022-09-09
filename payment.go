@@ -51,6 +51,12 @@ func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse,
 			return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(),
 				result.Failure.FailureSourceIndex)
 		}
+		if result.Failure.FailureSourceIndex == 0 {
+			log.Print(errColorF("%s (unexpected hop index %d, should be greater than 0)", result.Failure.Code.String(),
+				result.Failure.FailureSourceIndex))
+			return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(),
+				result.Failure.FailureSourceIndex)
+		}
 		nodeCtx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
 		node1, err := r.getNodeInfo(nodeCtx, route.Hops[result.Failure.FailureSourceIndex-1].PubKey)
