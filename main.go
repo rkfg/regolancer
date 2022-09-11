@@ -86,7 +86,7 @@ func loadConfig() {
 
 func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoiceResponse,
 	attempt *int) (err error, repeat bool) {
-	from, to, amt, err := r.pickChannelPair(params.Amount)
+	from, to, amt, err := r.pickChannelPair(params.Amount, params.MinAmount)
 	if err != nil {
 		log.Printf(errColor("Error during picking channel: %s"), err)
 		return err, false

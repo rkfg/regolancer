@@ -76,7 +76,7 @@ func min(args ...int64) (result int64) {
 	return
 }
 
-func (r *regolancer) pickChannelPair(amount int64) (from uint64, to uint64, maxAmount int64, err error) {
+func (r *regolancer) pickChannelPair(amount, minAmount int64) (from uint64, to uint64, maxAmount int64, err error) {
 	if len(r.channelPairs) == 0 {
 		if !r.routeFound {
 			return 0, 0, 0, errors.New("no routes")
@@ -106,6 +106,10 @@ func (r *regolancer) pickChannelPair(amount int64) (from uint64, to uint64, maxA
 		maxAmount = min(maxFrom, maxTo)
 	} else {
 		maxAmount = min(maxFrom, maxTo, amount)
+	}
+	if maxAmount < minAmount {
+		r.addFailedRoute(fromChan.ChanId, toChan.ChanId)
+		return r.pickChannelPair(amount, minAmount)
 	}
 	for k, v := range r.failureCache {
 		if v.expiration.Before(time.Now()) {
