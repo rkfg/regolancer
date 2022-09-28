@@ -3,6 +3,7 @@ module github.com/rkfg/regolancer
 go 1.18
 
 require (
+	github.com/BurntSushi/toml v0.3.1
 	github.com/fatih/color v1.13.0
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/lightninglabs/lndclient v0.15.1-0

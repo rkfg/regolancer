@@ -1,0 +1,38 @@
+connect = "192.168.178.22"
+macaroon_dir =  "."
+macaroon_filename = "admin.macaroon"
+"network"= "mainnet"
+"tlscert"= "./tls.cert"
+"econ_ratio"= 0.4
+"amount"= 100000
+"min_amount"= 50000
+"probe_steps"= 5
+"pfrom"= 40
+"pto"= 40
+"stat"= "stats.csv"
+"exclude_channels_in"= [
+        # River Financial
+        821913529170526209,
+        #southxchange
+        821280210377179136
+    ]
+"exclude_channels_out"= [
+    #nicehash
+	794863344113680384,
+    #bfx-lnd1
+    817004209683890177,
+    #HOPPINGSQUIRREL
+	806323553821196289
+    ]
+"exclude_channels"= [
+        #Kraken
+        830099393243185153
+        
+    ]
+"exclude_nodes"= [
+        #hash.stream
+        "0363749dbdb99321177082935bf7c36978fc46c725c5c452d48d721ab31e7682c2",
+        #Boltz
+        "026165850492521f4ac8abd9bd8088123446d126f648ca35e60f88177dc149ceb2"
+    ]
+

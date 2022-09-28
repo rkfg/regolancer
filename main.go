@@ -6,8 +6,10 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/jessevdk/go-flags"
 	"github.com/lightninglabs/lndclient"
 	"github.com/lightningnetwork/lnd/lnrpc"
@@ -22,23 +24,23 @@ var params struct {
 	Config             string   `short:"f" long:"config" description:"config file path"`
 	Connect            string   `short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect"`
 	TLSCert            string   `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert"`
-	MacaroonDir        string   `long:"macaroon-dir" description:"path to the macaroon directory" required:"false" json:"macaroon_dir"`
-	MacaroonFilename   string   `long:"macaroon-filename" description:"macaroon filename" json:"macaroon_filename"`
+	MacaroonDir        string   `long:"macaroon-dir" description:"path to the macaroon directory" required:"false" json:"macaroon_dir" toml:"macaroon_dir"`
+	MacaroonFilename   string   `long:"macaroon-filename" description:"macaroon filename" json:"macaroon_filename" toml:"macaroon_filename"`
 	Network            string   `short:"n" long:"network" description:"bitcoin network to use" json:"network"`
-	FromPerc           int64    `long:"pfrom" description:"channels with less than this inbound liquidity percentage will be considered as source channels" json:"pfrom"`
-	ToPerc             int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto"`
+	FromPerc           int64    `long:"pfrom" description:"channels with less than this inbound liquidity percentage will be considered as source channels" json:"pfrom" toml:"pfrom"`
+	ToPerc             int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto" toml:"pto"`
 	Perc               int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc"`
 	Amount             int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount"`
-	EconRatio          float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio"`
-	ProbeSteps         int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps"`
-	MinAmount          int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount"`
-	ExcludeChannelsIn  []uint64 `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in"`
-	ExcludeChannelsOut []uint64 `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out"`
-	ExcludeChannels    []uint64 `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels"`
-	ExcludeNodes       []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes"`
+	EconRatio          float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio" toml:"econ_ratio"`
+	ProbeSteps         int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
+	MinAmount          int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
+	ExcludeChannelsIn  []uint64 `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
+	ExcludeChannelsOut []uint64 `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
+	ExcludeChannels    []uint64 `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
+	ExcludeNodes       []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
 	ToChannel          uint64   `long:"to" description:"try only this channel as target (should satisfy other constraints too)" json:"to"`
 	FromChannel        uint64   `long:"from" description:"try only this channel as source (should satisfy other constraints too)" json:"from"`
-	StatFilename       string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat"`
+	StatFilename       string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
 }
 
 type failedRoute struct {
@@ -69,17 +71,26 @@ type regolancer struct {
 
 func loadConfig() {
 	flags.NewParser(&mainParams, flags.PrintErrors|flags.IgnoreUnknown).Parse()
+
 	if mainParams.Config == "" {
 		return
 	}
-	f, err := os.Open(mainParams.Config)
-	if err != nil {
-		log.Fatalf("Error opening config file %s: %s", mainParams.Config, err)
-	} else {
-		defer f.Close()
-		err = json.NewDecoder(f).Decode(&params)
+	if strings.Contains(mainParams.Config, ".toml") {
+		_, err := toml.DecodeFile(mainParams.Config, &params)
 		if err != nil {
-			log.Fatalf("Error reading config file %s: %s", mainParams.Config, err)
+			log.Fatalf("Error opening config file %s: %s", mainParams.Config, err)
+		}
+
+	} else {
+		f, err := os.Open(mainParams.Config)
+		if err != nil {
+			log.Fatalf("Error opening config file %s: %s", mainParams.Config, err)
+		} else {
+			defer f.Close()
+			err = json.NewDecoder(f).Decode(&params)
+			if err != nil {
+				log.Fatalf("Error reading config file %s: %s", mainParams.Config, err)
+			}
 		}
 	}
 }
