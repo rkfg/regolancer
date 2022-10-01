@@ -40,7 +40,8 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 		if _, ok := r.excludeBoth[c.ChanId]; ok {
 			continue
 		}
-		if c.LocalBalance < c.Capacity*toPerc/100 && c.LocalBalance+amount < c.Capacity/2 {
+		if c.LocalBalance < c.Capacity*toPerc/100 && (params.AllowUnbalanceTo ||
+			c.LocalBalance+amount < c.Capacity/2) {
 			if _, ok := r.excludeIn[c.ChanId]; ok {
 				continue
 			}
@@ -48,7 +49,9 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 				r.toChannels = append(r.toChannels, c)
 			}
 		}
-		if c.RemoteBalance < c.Capacity*fromPerc/100 && c.RemoteBalance+amount < c.Capacity/2 {
+		if c.RemoteBalance < c.Capacity*fromPerc/100 &&
+			(params.AllowUnbalanceFrom ||
+				c.RemoteBalance+amount < c.Capacity/2) {
 			if _, ok := r.excludeOut[c.ChanId]; ok {
 				continue
 			}
@@ -101,7 +104,13 @@ func (r *regolancer) pickChannelPair(amount, minAmount int64) (from uint64, to u
 	fromChan = pair[0]
 	toChan = pair[1]
 	maxFrom := fromChan.Capacity/2 - fromChan.RemoteBalance
+	if params.AllowUnbalanceFrom {
+		maxFrom = fromChan.LocalBalance
+	}
 	maxTo := toChan.Capacity/2 - toChan.LocalBalance
+	if params.AllowUnbalanceTo {
+		maxTo = toChan.RemoteBalance
+	}
 	if amount == 0 {
 		maxAmount = min(maxFrom, maxTo)
 	} else {

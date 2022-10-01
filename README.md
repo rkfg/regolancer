@@ -51,6 +51,8 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
   -r, --econ-ratio=          economical ratio for fee limit calculation as a multiple of target channel fee (for
                              example, 0.5 means you want to pay at max half the fee you might earn for routing out of
                              the target channel)
+  -F, --fee-limit-ppm=       don't consider the target channel fee and use this max fee ppm instead
+                             (can rebalance at a loss, be careful)
   -l, --lost-profit          also consider the outbound channel fees when looking for profitable routes so that
                              outbound_fee+inbound_fee < route_fee
   -b, --probe=               if the payment fails at the last hop try to probe lower amount using this many steps
@@ -61,6 +63,10 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
   -d, --exclude-node=        don't use this node for routing (can be specified multiple times)
       --to=                  try only this channel as target (should satisfy other constraints too)
       --from=                try only this channel as source (should satisfy other constraints too)
+      --allow-unbalance-from let the source channel go below 50% local liquidity, use if you want to drain a channel;
+                             you should also set --pfrom to >50
+      --allow-unbalance-to   let the target channel go above 50% local liquidity, use if you want to refill a channel;
+                             you should also set --pto to >50
   -s, --stat=                save successful rebalance information to the specified CSV file
 ```
 
