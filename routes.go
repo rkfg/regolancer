@@ -28,7 +28,21 @@ func (r *regolancer) getChanInfo(ctx context.Context, chanId uint64) (*lnrpc.Cha
 	return c, nil
 }
 
-func (r *regolancer) calcFeeMsat(ctx context.Context, from, to uint64, amtMsat int64, ratio float64) (feeMsat int64,
+func (r *regolancer) calcFeeLimitMsat(ctx context.Context, to uint64,
+	amtMsat int64, ppm int64) (feeMsat int64, lastPKstr string, err error) {
+	cTo, err := r.getChanInfo(ctx, to)
+	if err != nil {
+		return 0, "", err
+	}
+	lastPKstr = cTo.Node1Pub
+	if lastPKstr == r.myPK {
+		lastPKstr = cTo.Node2Pub
+	}
+	feeMsat = amtMsat * ppm / 1e6
+	return
+}
+
+func (r *regolancer) calcEconFeeMsat(ctx context.Context, from, to uint64, amtMsat int64, ratio float64) (feeMsat int64,
 	lastPKstr string, err error) {
 	cTo, err := r.getChanInfo(ctx, to)
 	if err != nil {
@@ -59,6 +73,15 @@ func (r *regolancer) calcFeeMsat(ctx context.Context, from, to uint64, amtMsat i
 		return 0, "", fmt.Errorf("max fee less than zero")
 	}
 	return
+}
+
+func (r *regolancer) calcFeeMsat(ctx context.Context, from, to uint64,
+	amtMsat int64, ratio float64) (feeMsat int64, lastPKstr string, err error) {
+	if params.FeeLimitPPM > 0 {
+		return r.calcFeeLimitMsat(ctx, to, amtMsat, params.FeeLimitPPM)
+	} else {
+		return r.calcEconFeeMsat(ctx, from, to, amtMsat, params.EconRatio)
+	}
 }
 
 func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int64) ([]*lnrpc.Route, int64, error) {
