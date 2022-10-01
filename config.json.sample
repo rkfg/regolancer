@@ -11,6 +11,7 @@
     "pfrom": 10,
     "pto": 30,
     "stat": "stats.csv",
+    "lost_profit": true,
     "exclude_channels_in": [
         821913529170526209,
         821280210377179136

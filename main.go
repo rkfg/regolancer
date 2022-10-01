@@ -32,6 +32,7 @@ var params struct {
 	Perc               int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc"`
 	Amount             int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount"`
 	EconRatio          float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio" toml:"econ_ratio"`
+	LostProfit         bool     `short:"l" long:"lost-profit" description:"also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee" json:"lost_profit" toml:"lost_profit"`
 	ProbeSteps         int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
 	MinAmount          int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
 	ExcludeChannelsIn  []uint64 `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
@@ -104,7 +105,7 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 	}
 	routeCtx, routeCtxCancel := context.WithTimeout(ctx, time.Second*30)
 	defer routeCtxCancel()
-	routes, fee, err := r.getRoutes(routeCtx, from, to, amt*1000, params.EconRatio)
+	routes, fee, err := r.getRoutes(routeCtx, from, to, amt*1000)
 	if err != nil {
 		if routeCtx.Err() == context.DeadlineExceeded {
 			log.Print(errColor("Timed out looking for a route"))

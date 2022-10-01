@@ -10,6 +10,7 @@ macaroon_filename = "admin.macaroon"
 "pfrom"= 40
 "pto"= 40
 "stat"= "stats.csv"
+lost_profit = true
 "exclude_channels_in"= [
         # River Financial
         821913529170526209,
