@@ -48,7 +48,11 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
       --pto=                 channels with less than this outbound liquidity percentage will be considered as target channels
   -p, --perc=                use this value as both pfrom and pto from above
   -a, --amount=              amount to rebalance
-      --econ-ratio=          economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)
+  -r, --econ-ratio=          economical ratio for fee limit calculation as a multiple of target channel fee (for
+                             example, 0.5 means you want to pay at max half the fee you might earn for routing out of
+                             the target channel)
+  -l, --lost-profit          also consider the outbound channel fees when looking for profitable routes so that
+                             outbound_fee+inbound_fee < route_fee
   -b, --probe=               if the payment fails at the last hop try to probe lower amount using this many steps
       --min-amount=          if probing is enabled this will be the minimum amount to try
   -i, --exclude-channel-in=  don't use this channel as incoming (can be specified multiple times)
@@ -60,11 +64,11 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
   -s, --stat=                save successful rebalance information to the specified CSV file
 ```
 
-Look in `config.json.sample` for corresponding JSON keys, they're not exactly
-equivalent. If in doubt, open `main.go` and look at the `var params struct`. If
-defined in both config and CLI, the CLI parameters take priority. Connect,
-macaroon and tls settings can be omitted if you have a default `lnd`
-installation.
+Look in `config.json.sample` or `config.toml.sample` for corresponding keys,
+they're not exactly equivalent. If in doubt, open `main.go` and look at the `var
+params struct`. If defined in both config and CLI, the CLI parameters take
+priority. Connect, macaroon and tls settings can be omitted if you have a
+default `lnd` installation.
 
 # Installing
 
