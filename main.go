@@ -16,11 +16,7 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 )
 
-var mainParams struct {
-	Config string `short:"f" long:"config" description:"config file path"`
-}
-
-var params struct {
+type configParams struct {
 	Config             string   `short:"f" long:"config" description:"config file path"`
 	Connect            string   `short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect"`
 	TLSCert            string   `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert"`
@@ -46,6 +42,8 @@ var params struct {
 	AllowUnbalanceTo   bool     `long:"allow-unbalance-to" description:"let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
 	StatFilename       string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
 }
+
+var params, cfgParams configParams
 
 type failedRoute struct {
 	channelPair [2]*lnrpc.Channel
@@ -74,26 +72,26 @@ type regolancer struct {
 }
 
 func loadConfig() {
-	flags.NewParser(&mainParams, flags.PrintErrors|flags.IgnoreUnknown).Parse()
+	flags.NewParser(&cfgParams, flags.None).Parse()
 
-	if mainParams.Config == "" {
+	if cfgParams.Config == "" {
 		return
 	}
-	if strings.Contains(mainParams.Config, ".toml") {
-		_, err := toml.DecodeFile(mainParams.Config, &params)
+	if strings.Contains(cfgParams.Config, ".toml") {
+		_, err := toml.DecodeFile(cfgParams.Config, &params)
 		if err != nil {
-			log.Fatalf("Error opening config file %s: %s", mainParams.Config, err)
+			log.Fatalf("Error opening config file %s: %s", cfgParams.Config, err)
 		}
 
 	} else {
-		f, err := os.Open(mainParams.Config)
+		f, err := os.Open(cfgParams.Config)
 		if err != nil {
-			log.Fatalf("Error opening config file %s: %s", mainParams.Config, err)
+			log.Fatalf("Error opening config file %s: %s", cfgParams.Config, err)
 		} else {
 			defer f.Close()
 			err = json.NewDecoder(f).Decode(&params)
 			if err != nil {
-				log.Fatalf("Error reading config file %s: %s", mainParams.Config, err)
+				log.Fatalf("Error reading config file %s: %s", cfgParams.Config, err)
 			}
 		}
 	}
@@ -161,7 +159,7 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 func main() {
 	rand.Seed(time.Now().UnixNano())
 	loadConfig()
-	_, err := flags.NewParser(&params, flags.Default|flags.IgnoreUnknown).Parse()
+	_, err := flags.Parse(&params)
 	if err != nil {
 		os.Exit(1)
 	}
