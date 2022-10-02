@@ -123,33 +123,13 @@ func (r *regolancer) getNodeInfo(ctx context.Context, pk string) (*lnrpc.NodeInf
 	return nodeInfo, err
 }
 
-func formatAmt(amt int64) string {
-	btc := amt / COIN
-	ms := amt % COIN / 1e6
-	ts := amt % 1e6 / 1e3
-	s := amt % 1e3
-	if btc > 0 {
-		return fmt.Sprintf("%s.%s,%s,%s", infoColorF("%d", btc), infoColorF("%02d", ms),
-			infoColorF("%03d", ts), infoColorF("%03d", s))
-	}
-	if ms > 0 {
-		return fmt.Sprintf("%s,%s,%s", infoColorF("%d", ms), infoColorF("%03d", ts), infoColorF("%03d", s))
-	}
-	if ts > 0 {
-		return fmt.Sprintf("%s,%s", infoColorF("%d", ts), infoColorF("%03d", s))
-	}
-	if s >= 0 {
-		return infoColorF("%d", s)
-	}
-	return errColor("error: ", amt)
-}
-
 func (r *regolancer) printRoute(ctx context.Context, route *lnrpc.Route) {
 	if len(route.Hops) == 0 {
 		return
 	}
 	errs := ""
-	fmt.Printf("%s %s\n", faintWhiteColor("Total fee:"), hiWhiteColor(route.TotalFeesMsat/1000))
+	fmt.Printf("%s %s\n", faintWhiteColor("Total fee:"),
+		formatFee(route.TotalFeesMsat))
 	for i, hop := range route.Hops {
 		nodeInfo, err := r.getNodeInfo(ctx, hop.PubKey)
 		if err != nil {
@@ -210,8 +190,8 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route,
 	if probedRoute.TotalFeesMsat > maxFeeMsat {
 		nextAmount := amount + (badAmount-amount)/2
 		log.Printf("%s requires too high fee %s (max allowed is %s), increasing amount to %s",
-			hiWhiteColor(amount), hiWhiteColor(probedRoute.TotalFeesMsat/1000),
-			hiWhiteColor(maxFeeMsat/1000), hiWhiteColor(nextAmount))
+			hiWhiteColor(amount), formatFee(probedRoute.TotalFeesMsat),
+			formatFee(maxFeeMsat), hiWhiteColor(nextAmount))
 		// returning negative amount as "good", it's a special case which means
 		// this is rather the lower bound and the actual good amount is still
 		// unknown

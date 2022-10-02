@@ -124,8 +124,8 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 		}
 	}
 	for _, route := range routes {
-		log.Printf("Attempt %s, amount: %s (max fee: %s)", hiWhiteColorF("#%d", *attempt),
-			hiWhiteColor(amt), hiWhiteColor(fee/1000))
+		log.Printf("Attempt %s, amount: %s (max fee: %s)",
+			hiWhiteColorF("#%d", *attempt), hiWhiteColor(amt), formatFee(fee))
 		r.printRoute(ctx, route)
 		err = r.pay(ctx, *invoice, amt, params.MinAmount, route, params.ProbeSteps)
 		if err == nil {
