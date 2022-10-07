@@ -1,33 +1,35 @@
 connect = "192.168.178.22"
-macaroon_dir =  "."
+macaroon_dir = "."
 macaroon_filename = "admin.macaroon"
-"network"= "mainnet"
-"tlscert"= "./tls.cert"
-"econ_ratio"= 0.4
-"amount"= 100000
-"min_amount"= 50000
-"probe_steps"= 5
-"pfrom"= 40
-"pto"= 40
-"stat"= "stats.csv"
+"network" = "mainnet"
+"tlscert" = "./tls.cert"
+"econ_ratio" = 0.4
+"amount" = 10000
+"min_amount" = 1000
+"probe_steps" = 5
+"pfrom" = 40
+"pto" = 40
+"stat" = "stats.csv"
 lost_profit = true
-"exclude_channels_in"= [
-        # River Financial
-        821913529170526209,
-        #southxchange
-        821280210377179136
-    ]
-"exclude_channels_out"= [
+"exclude_channels_in" = [
+    # River Financial
+    "821913529170526209",
+    #southxchange
+    "821280210377179136",
+]
+"exclude_channels_out" = [
     #nicehash
-	794863344113680384,
+    "722924x1760x0",
     #bfx-lnd1
-    817004209683890177,
+    "817004209683890177",
     #HOPPINGSQUIRREL
-	806323553821196289
+	"806323553821196289"
+    #LOOP
+    "757806x673x1"
     ]
 "exclude_channels"= [
         #Kraken
-        830099393243185153
+        "830099393243185153"
         
     ]
 "exclude_nodes"= [
@@ -37,12 +39,12 @@ lost_profit = true
         "026165850492521f4ac8abd9bd8088123446d126f648ca35e60f88177dc149ceb2"
     ]
 "to" = [
-    794863344113680384,
-    817004209683890177,
-    806323553821196289
+    "794863344113680384",
+    "817004209683890177",
+    "806323553821196289"
 ]
 
 "from" = [
-    821280210377179137,
-    821280210377179136
+    "821280210377179137",
+    "821280210377179136"
 ]
