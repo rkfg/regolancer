@@ -48,7 +48,13 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
       --pto=                  channels with less than this outbound liquidity percentage will be considered as target channels
   -p, --perc=                 use this value as both pfrom and pto from above
   -a, --amount=               amount to rebalance
-  -r, --econ-ratio=           economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)
+      --rel-amount-to=        calculate amount as the target channel capacity fraction (for example, 0.2 means you want to
+                              achieve at most 20% target channel local balance)
+      --rel-amount-from=      calculate amount as the source channel capacity fraction (for example, 0.2 means you want to
+                              achieve at most 20% source channel remote balance)
+  -r, --econ-ratio=           economical ratio for fee limit calculation as a multiple of target channel fee (for example,
+                              0.5 means you want to pay at max half the fee you might earn for routing out of the target
+                              channel)
   -F, --fee-limit-ppm=        don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)
   -l, --lost-profit           also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee
   -b, --probe-steps=          if the payment fails at the last hop try to probe lower amount using this many steps
