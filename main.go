@@ -190,6 +190,10 @@ func main() {
 	if params.MinAmount > 0 && params.MinAmount > params.Amount {
 		log.Fatal("Minimum amount should be more than amount")
 	}
+	if params.Amount > 0 &&
+		(params.RelAmountFrom > 0 || params.RelAmountTo > 0) {
+		log.Fatal("Use either precise amount or relative amounts but not both.")
+	}
 	conn, err := lndclient.NewBasicConn(params.Connect, params.TLSCert, params.MacaroonDir, params.Network,
 		lndclient.MacFilename(params.MacaroonFilename))
 	if err != nil {
