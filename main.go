@@ -36,8 +36,8 @@ type configParams struct {
 	ExcludeChannelsOut []uint64 `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
 	ExcludeChannels    []uint64 `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
 	ExcludeNodes       []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
-	ToChannel          uint64   `long:"to" description:"try only this channel as target (should satisfy other constraints too)" json:"to" toml:"to"`
-	FromChannel        uint64   `long:"from" description:"try only this channel as source (should satisfy other constraints too)" json:"from" toml:"from"`
+	ToChannel          []uint64 `long:"to" description:"try only this channel as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
+	FromChannel        []uint64 `long:"from" description:"try only this channel as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
 	AllowUnbalanceFrom bool     `long:"allow-unbalance-from" description:"let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50" json:"allow_unbalance_from" toml:"allow_unbalance_from"`
 	AllowUnbalanceTo   bool     `long:"allow-unbalance-to" description:"let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
 	StatFilename       string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
@@ -56,9 +56,9 @@ type regolancer struct {
 	myPK          string
 	channels      []*lnrpc.Channel
 	fromChannels  []*lnrpc.Channel
-	fromChannelId uint64
+	fromChannelId map[uint64]struct{}
 	toChannels    []*lnrpc.Channel
-	toChannelId   uint64
+	toChannelId   map[uint64]struct{}
 	channelPairs  map[string][2]*lnrpc.Channel
 	nodeCache     map[string]*lnrpc.NodeInfo
 	chanCache     map[uint64]*lnrpc.ChannelEdge
@@ -215,11 +215,11 @@ func main() {
 	if err != nil {
 		log.Fatal("Error listing own channels: ", err)
 	}
-	if params.FromChannel > 0 {
-		r.fromChannelId = params.FromChannel
+	if len(params.FromChannel) > 0 {
+		r.fromChannelId = makeChanSet(params.FromChannel)
 	}
-	if params.ToChannel > 0 {
-		r.toChannelId = params.ToChannel
+	if len(params.ToChannel) > 0 {
+		r.toChannelId = makeChanSet(params.ToChannel)
 	}
 	r.excludeIn = makeChanSet(params.ExcludeChannelsIn)
 	r.excludeOut = makeChanSet(params.ExcludeChannelsOut)
