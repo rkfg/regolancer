@@ -62,8 +62,10 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 	}
 	for _, fc := range r.fromChannels {
 		for _, tc := range r.toChannels {
-			pair := [2]*lnrpc.Channel{fc, tc}
-			r.channelPairs[formatChannelPair(pair[0].ChanId, pair[1].ChanId)] = pair
+			if fc.RemotePubkey != tc.RemotePubkey {
+				pair := [2]*lnrpc.Channel{fc, tc}
+				r.channelPairs[formatChannelPair(pair[0].ChanId, pair[1].ChanId)] = pair
+			}
 		}
 	}
 	return nil
