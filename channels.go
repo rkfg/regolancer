@@ -45,7 +45,7 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 			if _, ok := r.excludeIn[c.ChanId]; ok {
 				continue
 			}
-			if r.toChannelId == 0 || r.toChannelId == c.ChanId {
+			if _, ok := r.toChannelId[c.ChanId]; ok || len(r.toChannelId) == 0 {
 				r.toChannels = append(r.toChannels, c)
 			}
 		}
@@ -55,7 +55,7 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 			if _, ok := r.excludeOut[c.ChanId]; ok {
 				continue
 			}
-			if r.fromChannelId == 0 || r.fromChannelId == c.ChanId {
+			if _, ok := r.fromChannelId[c.ChanId]; ok || len(r.fromChannelId) == 0 {
 				r.fromChannels = append(r.fromChannels, c)
 			}
 		}

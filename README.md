@@ -38,36 +38,31 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
 # Parameters
 
 ```
-  -f, --config=              config file path
-  -c, --connect=             connect to lnd using host:port
-  -t, --tlscert=             path to tls.cert to connect
-      --macaroon-dir=        path to the macaroon directory
-      --macaroon-filename=   macaroon filename
-  -n, --network=             bitcoin network to use
-      --pfrom=               channels with less than this inbound liquidity percentage will be considered as source channels
-      --pto=                 channels with less than this outbound liquidity percentage will be considered as target channels
-  -p, --perc=                use this value as both pfrom and pto from above
-  -a, --amount=              amount to rebalance
-  -r, --econ-ratio=          economical ratio for fee limit calculation as a multiple of target channel fee (for
-                             example, 0.5 means you want to pay at max half the fee you might earn for routing out of
-                             the target channel)
-  -F, --fee-limit-ppm=       don't consider the target channel fee and use this max fee ppm instead
-                             (can rebalance at a loss, be careful)
-  -l, --lost-profit          also consider the outbound channel fees when looking for profitable routes so that
-                             outbound_fee+inbound_fee < route_fee
-  -b, --probe=               if the payment fails at the last hop try to probe lower amount using this many steps
-      --min-amount=          if probing is enabled this will be the minimum amount to try
-  -i, --exclude-channel-in=  don't use this channel as incoming (can be specified multiple times)
-  -o, --exclude-channel-out= don't use this channel as outgoing (can be specified multiple times)
-  -e, --exclude-channel=     don't use this channel at all (can be specified multiple times)
-  -d, --exclude-node=        don't use this node for routing (can be specified multiple times)
-      --to=                  try only this channel as target (should satisfy other constraints too)
-      --from=                try only this channel as source (should satisfy other constraints too)
-      --allow-unbalance-from let the source channel go below 50% local liquidity, use if you want to drain a channel;
-                             you should also set --pfrom to >50
-      --allow-unbalance-to   let the target channel go above 50% local liquidity, use if you want to refill a channel;
-                             you should also set --pto to >50
-  -s, --stat=                save successful rebalance information to the specified CSV file
+  -f, --config=               config file path
+  -c, --connect=              connect to lnd using host:port
+  -t, --tlscert=              path to tls.cert to connect
+      --macaroon-dir=         path to the macaroon directory
+      --macaroon-filename=    macaroon filename
+  -n, --network=              bitcoin network to use
+      --pfrom=                channels with less than this inbound liquidity percentage will be considered as source channels
+      --pto=                  channels with less than this outbound liquidity percentage will be considered as target channels
+  -p, --perc=                 use this value as both pfrom and pto from above
+  -a, --amount=               amount to rebalance
+  -r, --econ-ratio=           economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)
+  -F, --fee-limit-ppm=        don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)
+  -l, --lost-profit           also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee
+  -b, --probe-steps=          if the payment fails at the last hop try to probe lower amount using this many steps
+      --min-amount=           if probing is enabled this will be the minimum amount to try
+  -i, --exclude-channel-in=   don't use this channel as incoming (can be specified multiple times)
+  -o, --exclude-channel-out=  don't use this channel as outgoing (can be specified multiple times)
+  -e, --exclude-channel=      don't use this channel at all (can be specified multiple times)
+  -d, --exclude-node=         don't use this node for routing (can be specified multiple times)
+      --to=                   try only this channel as target (should satisfy other constraints too; can be specified multiple times)
+      --from=                 try only this channel as source (should satisfy other constraints too; can be specified multiple times)
+      --allow-unbalance-from  let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50
+      --allow-unbalance-to    let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50
+  -s, --stat=                 save successful rebalance information to the specified CSV file
+
 ```
 
 Look in `config.json.sample` or `config.toml.sample` for corresponding keys,
