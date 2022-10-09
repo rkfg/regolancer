@@ -71,6 +71,7 @@ type regolancer struct {
 	excludeNodes  [][]byte
 	statFilename  string
 	routeFound    bool
+	invoiceCache  map[int64]*lnrpc.AddInvoiceResponse
 }
 
 func loadConfig() {
@@ -99,8 +100,8 @@ func loadConfig() {
 	}
 }
 
-func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoiceResponse,
-	attempt *int) (err error, repeat bool) {
+func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
+	repeat bool) {
 	from, to, amt, err := r.pickChannelPair(params.Amount, params.MinAmount, params.RelAmountFrom, params.RelAmountTo)
 	if err != nil {
 		log.Printf(errColor("Error during picking channel: %s"), err)
@@ -118,18 +119,21 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 		return err, true
 	}
 	routeCtxCancel()
-	if params.Amount == 0 || *invoice == nil {
-		*invoice, err = r.createInvoice(ctx, from, to, amt)
-		if err != nil {
-			log.Printf("Error creating invoice: %s", err)
-			return err, true
-		}
+	invoice, err := r.createInvoice(ctx, from, to, amt)
+	if err != nil {
+		log.Printf("Error creating invoice: %s", err)
+		return err, true
 	}
+	defer func() {
+		if ctx.Err() == context.DeadlineExceeded {
+			r.invalidateInvoice(amt)
+		}
+	}()
 	for _, route := range routes {
 		log.Printf("Attempt %s, amount: %s (max fee: %s)",
 			hiWhiteColorF("#%d", *attempt), hiWhiteColor(amt), formatFee(fee))
 		r.printRoute(ctx, route)
-		err = r.pay(ctx, *invoice, amt, params.MinAmount, route, params.ProbeSteps)
+		err = r.pay(ctx, invoice, amt, params.MinAmount, route, params.ProbeSteps)
 		if err == nil {
 			return nil, false
 		}
@@ -149,6 +153,7 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 				if err == nil {
 					return nil, false
 				} else {
+					r.invalidateInvoice(amt)
 					log.Printf("Probed rebalance failed with error: %s", errColor(err))
 				}
 			}
@@ -230,6 +235,7 @@ func main() {
 	r.excludeIn = makeChanSet(params.ExcludeChannelsIn)
 	r.excludeOut = makeChanSet(params.ExcludeChannelsOut)
 	r.excludeBoth = makeChanSet(params.ExcludeChannels)
+	r.invoiceCache = map[int64]*lnrpc.AddInvoiceResponse{}
 	err = r.makeNodeList(params.ExcludeNodes)
 	if err != nil {
 		log.Fatal("Error parsing excluded node list: ", err)
@@ -245,15 +251,13 @@ func main() {
 		log.Fatal("No target channels selected")
 	}
 	infoCtxCancel()
-	var invoice *lnrpc.AddInvoiceResponse
 	attempt := 1
 	for {
 		attemptCtx, attemptCancel := context.WithTimeout(mainCtx, time.Minute*5)
-		_, retry := tryRebalance(attemptCtx, &r, &invoice, &attempt)
+		_, retry := tryRebalance(attemptCtx, &r, &attempt)
 		attemptCancel()
 		if attemptCtx.Err() == context.DeadlineExceeded {
 			log.Print(errColor("Attempt timed out"))
-			invoice = nil // create a new invoice next time
 		}
 		if mainCtx.Err() == context.DeadlineExceeded {
 			log.Println(errColor("Rebalancing timed out"))
