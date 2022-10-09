@@ -119,37 +119,22 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 		return err, true
 	}
 	routeCtxCancel()
-	invoice, err := r.createInvoice(ctx, from, to, amt)
-	if err != nil {
-		log.Printf("Error creating invoice: %s", err)
-		return err, true
-	}
-	defer func() {
-		if ctx.Err() == context.DeadlineExceeded {
-			r.invalidateInvoice(amt)
-		}
-	}()
 	for _, route := range routes {
 		log.Printf("Attempt %s, amount: %s (max fee: %s)",
 			hiWhiteColorF("#%d", *attempt), hiWhiteColor(amt), formatFee(fee))
 		r.printRoute(ctx, route)
-		err = r.pay(ctx, invoice, amt, params.MinAmount, route, params.ProbeSteps)
+		err = r.pay(ctx, amt, params.MinAmount, route, params.ProbeSteps)
 		if err == nil {
 			return nil, false
 		}
 		if retryErr, ok := err.(ErrRetry); ok {
 			amt = retryErr.amount
 			log.Printf("Trying to rebalance again with %s", hiWhiteColor(amt))
-			probedInvoice, err := r.createInvoice(ctx, from, to, amt)
-			if err != nil {
-				log.Printf("Error creating invoice: %s", err)
-				return err, true
-			}
 			probedRoute, err := r.rebuildRoute(ctx, route, amt)
 			if err != nil {
 				log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
 			} else {
-				err = r.pay(ctx, probedInvoice, amt, 0, probedRoute, 0)
+				err = r.pay(ctx, amt, 0, probedRoute, 0)
 				if err == nil {
 					return nil, false
 				} else {
