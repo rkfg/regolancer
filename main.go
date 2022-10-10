@@ -177,8 +177,9 @@ func main() {
 		params.FromPerc = params.Perc
 		params.ToPerc = params.Perc
 	}
-	if params.MinAmount > 0 && params.MinAmount > params.Amount {
-		log.Fatal("Minimum amount should be more than amount")
+	if params.MinAmount > 0 && params.Amount > 0 &&
+		params.MinAmount > params.Amount {
+		log.Fatal("Minimum amount should be less than amount")
 	}
 	if params.Amount > 0 &&
 		(params.RelAmountFrom > 0 || params.RelAmountTo > 0) {
