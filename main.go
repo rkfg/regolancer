@@ -27,6 +27,8 @@ type configParams struct {
 	ToPerc             int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto" toml:"pto"`
 	Perc               int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc" toml:"perc"`
 	Amount             int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount" toml:"amount"`
+	RelAmountTo        float64  `long:"rel-amount-to" description:"calculate amount as the target channel capacity fraction (for example, 0.2 means you want to achieve at most 20% target channel local balance)"`
+	RelAmountFrom      float64  `long:"rel-amount-from" description:"calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)"`
 	EconRatio          float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio" toml:"econ_ratio"`
 	FeeLimitPPM        int64    `short:"F" long:"fee-limit-ppm" description:"don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)" json:"fee_limit_ppm" toml:"fee_limit_ppm"`
 	LostProfit         bool     `short:"l" long:"lost-profit" description:"also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee" json:"lost_profit" toml:"lost_profit"`
@@ -69,6 +71,7 @@ type regolancer struct {
 	excludeNodes  [][]byte
 	statFilename  string
 	routeFound    bool
+	invoiceCache  map[int64]*lnrpc.AddInvoiceResponse
 }
 
 func loadConfig() {
@@ -97,9 +100,9 @@ func loadConfig() {
 	}
 }
 
-func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoiceResponse,
-	attempt *int) (err error, repeat bool) {
-	from, to, amt, err := r.pickChannelPair(params.Amount, params.MinAmount)
+func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
+	repeat bool) {
+	from, to, amt, err := r.pickChannelPair(params.Amount, params.MinAmount, params.RelAmountFrom, params.RelAmountTo)
 	if err != nil {
 		log.Printf(errColor("Error during picking channel: %s"), err)
 		return err, false
@@ -116,37 +119,26 @@ func tryRebalance(ctx context.Context, r *regolancer, invoice **lnrpc.AddInvoice
 		return err, true
 	}
 	routeCtxCancel()
-	if params.Amount == 0 || *invoice == nil {
-		*invoice, err = r.createInvoice(ctx, from, to, amt)
-		if err != nil {
-			log.Printf("Error creating invoice: %s", err)
-			return err, true
-		}
-	}
 	for _, route := range routes {
 		log.Printf("Attempt %s, amount: %s (max fee: %s)",
 			hiWhiteColorF("#%d", *attempt), hiWhiteColor(amt), formatFee(fee))
 		r.printRoute(ctx, route)
-		err = r.pay(ctx, *invoice, amt, params.MinAmount, route, params.ProbeSteps)
+		err = r.pay(ctx, amt, params.MinAmount, route, params.ProbeSteps)
 		if err == nil {
 			return nil, false
 		}
 		if retryErr, ok := err.(ErrRetry); ok {
 			amt = retryErr.amount
 			log.Printf("Trying to rebalance again with %s", hiWhiteColor(amt))
-			probedInvoice, err := r.createInvoice(ctx, from, to, amt)
-			if err != nil {
-				log.Printf("Error creating invoice: %s", err)
-				return err, true
-			}
 			probedRoute, err := r.rebuildRoute(ctx, route, amt)
 			if err != nil {
 				log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
 			} else {
-				err = r.pay(ctx, probedInvoice, amt, 0, probedRoute, 0)
+				err = r.pay(ctx, amt, 0, probedRoute, 0)
 				if err == nil {
 					return nil, false
 				} else {
+					r.invalidateInvoice(amt)
 					log.Printf("Probed rebalance failed with error: %s", errColor(err))
 				}
 			}
@@ -185,8 +177,13 @@ func main() {
 		params.FromPerc = params.Perc
 		params.ToPerc = params.Perc
 	}
-	if params.MinAmount > 0 && params.MinAmount > params.Amount {
-		log.Fatal("Minimum amount should be more than amount")
+	if params.MinAmount > 0 && params.Amount > 0 &&
+		params.MinAmount > params.Amount {
+		log.Fatal("Minimum amount should be less than amount")
+	}
+	if params.Amount > 0 &&
+		(params.RelAmountFrom > 0 || params.RelAmountTo > 0) {
+		log.Fatal("Use either precise amount or relative amounts but not both.")
 	}
 	conn, err := lndclient.NewBasicConn(params.Connect, params.TLSCert, params.MacaroonDir, params.Network,
 		lndclient.MacFilename(params.MacaroonFilename))
@@ -224,6 +221,7 @@ func main() {
 	r.excludeIn = makeChanSet(params.ExcludeChannelsIn)
 	r.excludeOut = makeChanSet(params.ExcludeChannelsOut)
 	r.excludeBoth = makeChanSet(params.ExcludeChannels)
+	r.invoiceCache = map[int64]*lnrpc.AddInvoiceResponse{}
 	err = r.makeNodeList(params.ExcludeNodes)
 	if err != nil {
 		log.Fatal("Error parsing excluded node list: ", err)
@@ -239,15 +237,13 @@ func main() {
 		log.Fatal("No target channels selected")
 	}
 	infoCtxCancel()
-	var invoice *lnrpc.AddInvoiceResponse
 	attempt := 1
 	for {
 		attemptCtx, attemptCancel := context.WithTimeout(mainCtx, time.Minute*5)
-		_, retry := tryRebalance(attemptCtx, &r, &invoice, &attempt)
+		_, retry := tryRebalance(attemptCtx, &r, &attempt)
 		attemptCancel()
 		if attemptCtx.Err() == context.DeadlineExceeded {
 			log.Print(errColor("Attempt timed out"))
-			invoice = nil // create a new invoice next time
 		}
 		if mainCtx.Err() == context.DeadlineExceeded {
 			log.Println(errColor("Rebalancing timed out"))

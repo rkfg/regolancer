@@ -21,16 +21,36 @@ func (e ErrRetry) Error() string {
 
 var ErrProbeFailed = fmt.Errorf("probe failed")
 
-func (r *regolancer) createInvoice(ctx context.Context, from, to uint64, amount int64) (*lnrpc.AddInvoiceResponse, error) {
-	return r.lnClient.AddInvoice(ctx, &lnrpc.Invoice{Value: amount,
-		Memo:   fmt.Sprintf("Rebalance %d ⇒ %d", from, to),
+func (r *regolancer) createInvoice(ctx context.Context, amount int64) (result *lnrpc.AddInvoiceResponse, err error) {
+	var ok bool
+	if result, ok = r.invoiceCache[amount]; ok {
+		return
+	}
+	result, err = r.lnClient.AddInvoice(ctx, &lnrpc.Invoice{Value: amount,
+		Memo:   "Rebalance attempt",
 		Expiry: int64(time.Hour.Seconds() * 24)})
+	r.invoiceCache[amount] = result
+	return
 }
 
-func (r *regolancer) pay(ctx context.Context, invoice *lnrpc.AddInvoiceResponse,
-	amount int64, minAmount int64, route *lnrpc.Route, probeSteps int) error {
+func (r *regolancer) invalidateInvoice(amount int64) {
+	delete(r.invoiceCache, amount)
+}
+
+func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
+	route *lnrpc.Route, probeSteps int) error {
 	fmt.Println()
 	defer fmt.Println()
+	invoice, err := r.createInvoice(ctx, amount)
+	if err != nil {
+		log.Printf("Error creating invoice: %s", err)
+		return err
+	}
+	defer func() {
+		if ctx.Err() == context.DeadlineExceeded {
+			r.invalidateInvoice(amount)
+		}
+	}()
 	lastHop := route.Hops[len(route.Hops)-1]
 	lastHop.MppRecord = &lnrpc.MPPRecord{
 		PaymentAddr:  invoice.PaymentAddr,
