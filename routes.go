@@ -69,6 +69,10 @@ func (r *regolancer) calcEconFeeMsat(ctx context.Context, from, to uint64, amtMs
 	}
 	feeMsat = int64(float64(policyTo.FeeBaseMsat+amtMsat*
 		policyTo.FeeRateMilliMsat)*ratio/1e6) - lostProfitMsat
+
+	if params.EconRatioMaxPPM != 0 && int64(float64(feeMsat)/float64(amtMsat)*1e6) > params.EconRatioMaxPPM {
+		feeMsat = params.EconRatioMaxPPM * amtMsat / 1e6
+	}
 	if feeMsat < 0 {
 		return 0, "", fmt.Errorf("max fee less than zero")
 	}

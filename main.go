@@ -31,6 +31,7 @@ type configParams struct {
 	RelAmountTo        float64  `long:"rel-amount-to" description:"calculate amount as the target channel capacity fraction (for example, 0.2 means you want to achieve at most 20% target channel local balance)"`
 	RelAmountFrom      float64  `long:"rel-amount-from" description:"calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)"`
 	EconRatio          float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio" toml:"econ_ratio"`
+	EconRatioMaxPPM    int64    `long:"econ-ratio-max-ppm" description:"limits the max fee ppm for a rebalance when using econ ratio" json:"econ_ratio_max_ppm" toml:"econ_ratio_max_ppm"`
 	FeeLimitPPM        int64    `short:"F" long:"fee-limit-ppm" description:"don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)" json:"fee_limit_ppm" toml:"fee_limit_ppm"`
 	LostProfit         bool     `short:"l" long:"lost-profit" description:"also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee" json:"lost_profit" toml:"lost_profit"`
 	ProbeSteps         int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
@@ -211,6 +212,9 @@ func main() {
 	}
 	if params.EconRatio == 0 && params.FeeLimitPPM == 0 {
 		params.EconRatio = 1
+	}
+	if params.EconRatioMaxPPM != 0 && params.FeeLimitPPM != 0 {
+		log.Fatalf(errColor("Error EconRatioMaxPPM and FeeLimitPPM not allowed at the same time (safety precaution)"))
 	}
 	if params.Perc > 0 {
 		params.FromPerc = params.Perc
