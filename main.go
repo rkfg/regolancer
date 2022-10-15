@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,16 +31,17 @@ type configParams struct {
 	RelAmountTo        float64  `long:"rel-amount-to" description:"calculate amount as the target channel capacity fraction (for example, 0.2 means you want to achieve at most 20% target channel local balance)"`
 	RelAmountFrom      float64  `long:"rel-amount-from" description:"calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)"`
 	EconRatio          float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio" toml:"econ_ratio"`
+	EconRatioMaxPPM    int64    `long:"econ-ratio-max-ppm" description:"limits the max fee ppm for a rebalance when using econ ratio" json:"econ_ratio_max_ppm" toml:"econ_ratio_max_ppm"`
 	FeeLimitPPM        int64    `short:"F" long:"fee-limit-ppm" description:"don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)" json:"fee_limit_ppm" toml:"fee_limit_ppm"`
 	LostProfit         bool     `short:"l" long:"lost-profit" description:"also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee" json:"lost_profit" toml:"lost_profit"`
 	ProbeSteps         int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
 	MinAmount          int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
-	ExcludeChannelsIn  []uint64 `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
-	ExcludeChannelsOut []uint64 `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
-	ExcludeChannels    []uint64 `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
+	ExcludeChannelsIn  []string `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
+	ExcludeChannelsOut []string `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
+	ExcludeChannels    []string `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
 	ExcludeNodes       []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
-	ToChannel          []uint64 `long:"to" description:"try only this channel as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
-	FromChannel        []uint64 `long:"from" description:"try only this channel as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
+	ToChannel          []string `long:"to" description:"try only this channel as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
+	FromChannel        []string `long:"from" description:"try only this channel as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
 	AllowUnbalanceFrom bool     `long:"allow-unbalance-from" description:"let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50" json:"allow_unbalance_from" toml:"allow_unbalance_from"`
 	AllowUnbalanceTo   bool     `long:"allow-unbalance-to" description:"let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
 	StatFilename       string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
@@ -82,8 +84,14 @@ func loadConfig() {
 	}
 	if strings.Contains(cfgParams.Config, ".toml") {
 		_, err := toml.DecodeFile(cfgParams.Config, &params)
+
 		if err != nil {
-			log.Fatalf("Error opening config file %s: %s", cfgParams.Config, err)
+			if strings.Contains(err.Error(), "TOML value of type int64 into a Go string") {
+				log.Print(infoColor("Info: all prior int channel arrays are now string arrays. " +
+					"Make sure the following arguments in the config files are now strings:\n" +
+					"ExcludeChannelsIn,ExcludeChannelsOut, ExcludeChannels,ToChannel, FromChannel"))
+			}
+			log.Fatalf("Error opening config file %s: %s", cfgParams.Config, err.Error())
 		}
 
 	} else {
@@ -92,12 +100,44 @@ func loadConfig() {
 			log.Fatalf("Error opening config file %s: %s", cfgParams.Config, err)
 		} else {
 			defer f.Close()
-			err = json.NewDecoder(f).Decode(&params)
+			decoder := json.NewDecoder(f)
+			decoder.UseNumber()
+			err := decoder.Decode(&params)
 			if err != nil {
+				if strings.Contains(err.Error(), "cannot unmarshal number into Go struct field") {
+					log.Print(infoColor("Info: all prior int channel arrays are now string arrays. " +
+						"Make sure the following arguments in the config files are now strings:\n" +
+						"ExcludeChannelsIn,ExcludeChannelsOut, ExcludeChannels,ToChannel, FromChannel"))
+				}
 				log.Fatalf("Error reading config file %s: %s", cfgParams.Config, err)
 			}
 		}
 	}
+}
+
+func convertChanStringToInt(chanIds []string) (channels []uint64) {
+
+	for _, cid := range chanIds {
+
+		chanId, err := strconv.ParseInt(cid, 10, 64)
+
+		if err != nil {
+
+			isScid := strings.Count(strings.ToLower(cid), "x") == 2
+			if isScid {
+				chanId = parseScid(cid)
+
+			} else {
+				log.Fatalf("error: parsing Channel with Id %s, %s ", cid, err)
+
+			}
+		}
+		channels = append(channels, uint64(chanId))
+
+	}
+
+	return channels
+
 }
 
 func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
@@ -173,6 +213,9 @@ func main() {
 	if params.EconRatio == 0 && params.FeeLimitPPM == 0 {
 		params.EconRatio = 1
 	}
+	if params.EconRatioMaxPPM != 0 && params.FeeLimitPPM != 0 {
+		log.Fatalf(errColor("Error EconRatioMaxPPM and FeeLimitPPM not allowed at the same time (safety precaution)"))
+	}
 	if params.Perc > 0 {
 		params.FromPerc = params.Perc
 		params.ToPerc = params.Perc
@@ -213,20 +256,24 @@ func main() {
 		log.Fatal("Error listing own channels: ", err)
 	}
 	if len(params.FromChannel) > 0 {
-		r.fromChannelId = makeChanSet(params.FromChannel)
+		r.fromChannelId = makeChanSet(convertChanStringToInt(params.FromChannel))
 	}
 	if len(params.ToChannel) > 0 {
-		r.toChannelId = makeChanSet(params.ToChannel)
+		r.toChannelId = makeChanSet(convertChanStringToInt(params.ToChannel))
 	}
-	r.excludeIn = makeChanSet(params.ExcludeChannelsIn)
-	r.excludeOut = makeChanSet(params.ExcludeChannelsOut)
-	r.excludeBoth = makeChanSet(params.ExcludeChannels)
+
+	r.excludeIn = makeChanSet(convertChanStringToInt(params.ExcludeChannelsIn))
+	r.excludeOut = makeChanSet(convertChanStringToInt(params.ExcludeChannelsOut))
+	r.excludeBoth = makeChanSet(convertChanStringToInt(params.ExcludeChannels))
+
 	r.invoiceCache = map[int64]*lnrpc.AddInvoiceResponse{}
+
 	err = r.makeNodeList(params.ExcludeNodes)
 	if err != nil {
 		log.Fatal("Error parsing excluded node list: ", err)
 	}
 	err = r.getChannelCandidates(params.FromPerc, params.ToPerc, params.Amount)
+
 	if err != nil {
 		log.Fatal("Error choosing channels: ", err)
 	}

@@ -7,9 +7,12 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
+	"github.com/lightningnetwork/lnd/lnwire"
 )
 
 func formatChannelPair(a, b uint64) string {
@@ -143,4 +146,33 @@ func (r *regolancer) addFailedRoute(from, to uint64) {
 	k := formatChannelPair(from, to)
 	r.failureCache[k] = failedRoute{channelPair: r.channelPairs[k], expiration: &t}
 	delete(r.channelPairs, k)
+}
+
+func parseScid(chanId string) int64 {
+
+	elements := strings.Split(strings.ToLower(chanId), "x")
+
+	blockHeight, err := strconv.ParseInt(elements[0], 10, 24)
+	if err != nil {
+		log.Fatalf("error: not able to parse Blockheight of ShortChannelID %s, %s ", chanId, err)
+	}
+	txIndex, err := strconv.ParseInt(elements[1], 10, 24)
+	if err != nil {
+		log.Fatalf("error: not able to parse TxIndex of ShortChannelID %s, %s ", chanId, err)
+
+	}
+	txPosition, err := strconv.ParseInt(elements[2], 10, 32)
+
+	if err != nil {
+		log.Fatalf("error: not able to parse txPosition of ShortChannelID %s, %s ", chanId, err)
+
+	}
+
+	var scId lnwire.ShortChannelID
+	scId.BlockHeight = uint32(blockHeight)
+	scId.TxIndex = uint32(txIndex)
+	scId.TxPosition = uint16(txPosition)
+
+	return int64(scId.ToUint64())
+
 }
