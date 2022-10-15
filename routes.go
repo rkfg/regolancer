@@ -261,6 +261,9 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route,
 
 func (r *regolancer) makeNodeList(nodes []string) error {
 	for _, nid := range nodes {
+		if len(nid) != 66 {
+			return fmt.Errorf("invalid node id (%s) length, expected 66 characters, got %d", nid, len(nid))
+		}
 		pk, err := hex.DecodeString(nid)
 		if err != nil {
 			return err
