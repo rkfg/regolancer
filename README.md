@@ -23,17 +23,26 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
   stuck the process will continue shortly
 - JSON config file to set some defaults you prefer
 - optional route probing using binary search to rebalance a smaller amount
-- data caching to speed up alias resolution, quickly skip failing channel pairs etc.
+- data caching to speed up alias resolution, quickly skip failing channel pairs
+  etc.
+- storing/loading cached nodes information to disk to "warm up" much faster next
+  time you launch the program
 - sensible node capacity formatting according to [Bitcoin
   design](https://bitcoin.design/guide/designing-products/units-and-symbols/)
   guidelines (easy to tell how many full coins there are)
 - automatic max fee calculation from the target channel policy and preferred
-  economy fee ratio (the amount spent on rebalanced to the expected income from
+  economy fee ratio (the amount spent on rebalance to the expected income from
   this channel)
 - excluding your channels from consideration
 - excluding any nodes from routing through (if they're known to be slow or constantly failing to route anything)
 - using just one source and/or target channel (by default all imbalanced
   channels are considered and pairs are chosen randomly)
+- calculate the rebalance amount automatically from current and desired balance
+  percent
+- safety precautions that prevent balances going beyond 50% of channel capacity,
+  can be turned off explicitly if that's what you want
+- saving successful rebalance parameters into a CSV file for further profit analysis
+  with any external tools
 
 # Parameters
 
@@ -74,6 +83,43 @@ they're not exactly equivalent. If in doubt, open `main.go` and look at the `var
 params struct`. If defined in both config and CLI, the CLI parameters take
 priority. Connect, macaroon and tls settings can be omitted if you have a
 default `lnd` installation.
+
+# Node cache
+
+Node cache is only used for printing routes, it contains basic node information
+such as alias, total capacity, number of channels, features etc. However,
+getting this information might be slow as every request to lnd is processed
+sequentially. The first few routes print noticeably slower until more nodes
+"around" you are queried and cached in RAM. This information shouldn't be very
+up-to-date (unlike the channel balances, policies etc. which are retrieved on
+every launch and are only cached for the run time) and nodes themselves
+broadcast updates not very often. It makes sense to persist this data to disk
+and load it on every run so that routes are printed almost instantly, and the
+payment is only attempted after the route is fully printed. It would be good to
+run a payment attempt and route print in parallel but currently the payment
+function can dump errors and it would interfere with the route output.
+
+However, there's a gotcha that I learned from other users of regolancer: people
+run multiple instances of it in parallel, so they might terminate at different
+times. If all those instances use the same cache file, they will overwrite it
+and lose information that another instance might have stored before them, or
+they might start writing at the same time and corrupt it. One way to solve it is
+to use separate cache files but then each instance would query lnd for the same
+nodes as other instances. So instead of this I added file locking (using
+`/tmp/regolancer.lock` file on Linux and probably `%tmpdir%/regolancer.lock` on
+Windows, haven't tested) that allows multiple readers but just one writer and
+implemented simple cache merging. When it's saved, first we load the existing
+cache (under a write lock so no one can access it), copy all nodes that are
+missing in our own cache or have a more recent update time, then save the result
+replacing the cache file.
+
+There's also the cache expiration parameter (`--node-cache-lifetime`) set to
+1440min/24h by default that lets you skip cached nodes that are older than that.
+It doesn't affect any actual logic, just that these nodes will be queried again
+from lnd when they're printed for the first time. Set it to a bigger number if
+you don't care about the node stat actuality.
+
+Cache is also saved if you interrupt regolancer with Ctrl+C.
 
 # Installing
 
