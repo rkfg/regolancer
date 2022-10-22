@@ -107,6 +107,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 			maxAmount, err := r.probeRoute(ctx, route, min, amount, start,
 				probeSteps)
 			if err != nil {
+				log.Print(errColorF("Probe error: %s", err))
 				return err
 			}
 			if maxAmount == 0 {
