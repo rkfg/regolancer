@@ -160,8 +160,8 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 	}
 	routeCtxCancel()
 	for _, route := range routes {
-		log.Printf("Attempt %s, amount: %s (max fee: %s)",
-			hiWhiteColorF("#%d", *attempt), hiWhiteColor(amt), formatFee(fee))
+		log.Printf("Attempt %s, amount: %s (max fee: %s sat | %s ppm )",
+			hiWhiteColorF("#%d", *attempt), hiWhiteColor(amt), formatFee(fee), formatFeePPM(amt*1000, fee))
 		r.printRoute(ctx, route)
 		err = r.pay(ctx, amt, params.MinAmount, route, params.ProbeSteps)
 		if err == nil {

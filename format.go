@@ -44,3 +44,8 @@ func formatFee(amtMsat int64) string {
 	}
 	return hiWhiteColor(amtMsat / 1000)
 }
+
+func formatFeePPM(amtMsat int64, feeMsat int64) string {
+
+	return hiWhiteColor(int64(float64(feeMsat) / float64(amtMsat) * 1e6))
+}
