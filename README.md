@@ -66,7 +66,7 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
       --allow-unbalance-to    let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50
   -s, --stat=                 save successful rebalance information to the specified CSV file
       --node-cache=           save and load other nodes information to this file, improves cold start performance
-      --node-cache-lifetime=  the cache file will not be loaded if it's older than this time (in minutes) (default: 1440)
+      --node-cache-lifetime=  nodes with last update older than this time (in minutes) will be removed from cache after loading it (default: 1440)
 ```
 
 Look in `config.json.sample` or `config.toml.sample` for corresponding keys,
