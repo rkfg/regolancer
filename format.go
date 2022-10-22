@@ -40,7 +40,7 @@ func formatAmt(amt int64) string {
 
 func formatFee(amtMsat int64) string {
 	if amtMsat < 1000 {
-		return hiWhiteColorF("0.%d", amtMsat)
+		return hiWhiteColorF("0.%03d", amtMsat)
 	}
 	return hiWhiteColor(amtMsat / 1000)
 }
