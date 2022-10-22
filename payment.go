@@ -66,14 +66,14 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 	}
 	if result.Status == lnrpc.HTLCAttempt_FAILED {
 		if result.Failure.FailureSourceIndex >= uint32(len(route.Hops)) {
-			log.Print(errColorF("%s (unexpected hop index %d, should be less than %d)", result.Failure.Code.String(),
-				result.Failure.FailureSourceIndex, len(route.Hops)))
+			logErrorF("%s (unexpected hop index %d, should be less than %d)", result.Failure.Code.String(),
+				result.Failure.FailureSourceIndex, len(route.Hops))
 			return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(),
 				result.Failure.FailureSourceIndex)
 		}
 		if result.Failure.FailureSourceIndex == 0 {
-			log.Print(errColorF("%s (unexpected hop index %d, should be greater than 0)", result.Failure.Code.String(),
-				result.Failure.FailureSourceIndex))
+			logErrorF("%s (unexpected hop index %d, should be greater than 0)", result.Failure.Code.String(),
+				result.Failure.FailureSourceIndex)
 			return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(),
 				result.Failure.FailureSourceIndex)
 		}
@@ -107,7 +107,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 			maxAmount, err := r.probeRoute(ctx, route, min, amount, start,
 				probeSteps)
 			if err != nil {
-				log.Print(errColorF("Probe error: %s", err))
+				logErrorF("Probe error: %s", err)
 				return err
 			}
 			if maxAmount == 0 {
@@ -123,7 +123,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 			_, err := os.Stat(r.statFilename)
 			f, ferr := os.OpenFile(r.statFilename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 			if ferr != nil {
-				log.Print(errColorF("Error saving rebalance stats to %s: %s", r.statFilename, ferr))
+				logErrorF("Error saving rebalance stats to %s: %s", r.statFilename, ferr)
 				return nil
 			}
 			defer f.Close()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/fatih/color"
 )
@@ -48,4 +49,8 @@ func formatFee(amtMsat int64) string {
 func formatFeePPM(amtMsat int64, feeMsat int64) string {
 
 	return hiWhiteColor(int64(float64(feeMsat) / float64(amtMsat) * 1e6))
+}
+
+func logErrorF(fmt string, args ...any) {
+	log.Print(errColorF(fmt, args...))
 }
