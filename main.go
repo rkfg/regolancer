@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,8 @@ type configParams struct {
 	AllowUnbalanceFrom bool     `long:"allow-unbalance-from" description:"let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50" json:"allow_unbalance_from" toml:"allow_unbalance_from"`
 	AllowUnbalanceTo   bool     `long:"allow-unbalance-to" description:"let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
 	StatFilename       string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
+	NodeCacheFilename  string   `long:"node-cache" description:"save and load other nodes information to this file, improves cold start performance"  json:"node_cache_filename" toml:"node_cache_filename"`
+	NodeCacheLifetime  int      `long:"node-cache-lifetime" description:"the cache file will not be loaded if it's older than this time (in minutes)" json:"node_cache_lifetime" toml:"node_cache_lifetime" default:"1440"`
 }
 
 var params, cfgParams configParams
@@ -285,6 +288,17 @@ func main() {
 	}
 	infoCtxCancel()
 	attempt := 1
+
+	r.loadNodeCache(params.NodeCacheFilename, params.NodeCacheLifetime)
+	defer r.saveNodeCache(params.NodeCacheFilename)
+	stopChan := make(chan os.Signal)
+	signal.Notify(stopChan, os.Interrupt)
+	go func() {
+		<-stopChan
+		r.saveNodeCache(params.NodeCacheFilename)
+		os.Exit(1)
+	}()
+
 	for {
 		attemptCtx, attemptCancel := context.WithTimeout(mainCtx, time.Minute*5)
 		_, retry := tryRebalance(attemptCtx, &r, &attempt)
