@@ -74,7 +74,7 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
       --allow-unbalance-from  let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50
       --allow-unbalance-to    let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50
   -s, --stat=                 save successful rebalance information to the specified CSV file
-      --node-cache=           save and load other nodes information to this file, improves cold start performance
+      --node-cache-filename=  save and load other nodes information to this file, improves cold start performance
       --node-cache-lifetime=  nodes with last update older than this time (in minutes) will be removed from cache after loading it (default: 1440)
 ```
 
@@ -85,6 +85,14 @@ priority. Connect, macaroon and tls settings can be omitted if you have a
 default `lnd` installation.
 
 # Node cache
+
+Enable the cache by setting `--node-cache-filename=/path/to/cache.dat` (or
+`node_cache_filename` config parameter), you're free to choose any path and file
+name you like. It speeds up printing routes and lowers load on lnd in case you
+run multiple regolancer instances. If you're not interested in technical
+details, feel free to skip the following section.
+
+## How this cache works
 
 Node cache is only used for printing routes, it contains basic node information
 such as alias, total capacity, number of channels, features etc. However,
