@@ -44,6 +44,17 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
 - saving successful rebalance parameters into a CSV file for further profit analysis
   with any external tools
 
+# Installation
+
+You need to have Go SDK installed, then simply run `go install
+github.com/rkfg/regolancer@latest` and by default it will download, compile and
+build the binary in `~/go/bin/regolancer`. To crosscompile for other platforms
+use `GOARCH` and `GOOS` env vars to choose the target architecture and OS. For
+RPi run it as `GOARCH=arm64 go install github.com/rkfg/regolancer@latest` if you
+run a 64 bit system (and you should!). You'll find the binaries in
+`~/go/bin/linux_arm64`. For 32 bit use `GOARCH=arm`, the binary will be located
+in `~/go/bin/linux_arm`.
+
 # Parameters
 
 ```
@@ -128,17 +139,6 @@ from lnd when they're printed for the first time. Set it to a bigger number if
 you don't care about the node stat actuality.
 
 Cache is also saved if you interrupt regolancer with Ctrl+C.
-
-# Installing
-
-You need to have Go SDK installed, then simply run `go install
-github.com/rkfg/regolancer@latest` and by default it will download, compile and
-build the binary in `~/go/bin/regolancer`. To crosscompile for other platforms
-use `GOARCH` and `GOOS` env vars to choose the target architecture and OS. For
-RPi run it as `GOARCH=arm64 go install github.com/rkfg/regolancer@latest` if you
-run a 64 bit system (and you should!). You'll find the binaries in
-`~/go/bin/linux_arm64`. For 32 bit use `GOARCH=arm`, the binary will be located
-in `~/go/bin/linux_arm`.
 
 # Probing
 
