@@ -328,7 +328,7 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 
 }
 
-func preflightChecks(params configParams) error {
+func preflightChecks(params *configParams) error {
 
 	if params.Connect == "" {
 		params.Connect = "127.0.0.1:10009"
@@ -381,7 +381,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = preflightChecks(params)
+	err = preflightChecks(&params)
 
 	if err != nil {
 		log.Fatal(errColor(err))
