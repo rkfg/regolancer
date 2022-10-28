@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gofrs/flock"
-	"github.com/lightningnetwork/lnd/lnrpc"
 )
 
 func lock() *flock.Flock {
@@ -20,6 +19,14 @@ func (r *regolancer) loadNodeCache(filename string, exp int, doLock bool) error 
 	if filename == "" {
 		return nil
 	}
+	defer func() {
+		err := recover()
+		if err == nil {
+			return
+		}
+		log.Printf("Loading failed, cache format might be outdated: %s", err)
+		r.nodeCache = map[string]cachedNodeInfo{}
+	}()
 	if doLock {
 		log.Printf("Loading node cache from %s", filename)
 		l := lock()
@@ -34,10 +41,13 @@ func (r *regolancer) loadNodeCache(filename string, exp int, doLock bool) error 
 		return nil
 	}
 	defer f.Close()
-	gob.NewDecoder(f).Decode(&r.nodeCache)
+	err = gob.NewDecoder(f).Decode(&r.nodeCache)
+	if err != nil {
+		return err
+	}
 	for k, v := range r.nodeCache {
-		if time.Since(time.Unix(int64(v.Node.LastUpdate), 0)) >
-			time.Minute*time.Duration(exp) {
+		since := time.Since(v.Timestamp)
+		if since > time.Minute*time.Duration(exp) {
 			delete(r.nodeCache, k)
 		}
 	}
@@ -54,7 +64,7 @@ func (r *regolancer) saveNodeCache(filename string, exp int) error {
 	l.Lock()
 	defer l.Unlock()
 
-	old := regolancer{nodeCache: map[string]*lnrpc.NodeInfo{}}
+	old := regolancer{nodeCache: map[string]cachedNodeInfo{}}
 	err := old.loadNodeCache(filename, exp, false)
 
 	if err != nil {
@@ -62,7 +72,7 @@ func (r *regolancer) saveNodeCache(filename string, exp int) error {
 	}
 	for k, v := range old.nodeCache {
 		if n, ok := r.nodeCache[k]; !ok ||
-			n.Node.LastUpdate < v.Node.LastUpdate {
+			n.Timestamp.Before(v.Timestamp) {
 			r.nodeCache[k] = v
 		}
 	}
@@ -72,6 +82,6 @@ func (r *regolancer) saveNodeCache(filename string, exp int) error {
 		return fmt.Errorf("error creating node cache file: %s", err)
 	}
 	defer f.Close()
-	gob.NewEncoder(f).Encode(r.nodeCache)
-	return nil
+	err = gob.NewEncoder(f).Encode(r.nodeCache)
+	return err
 }

@@ -51,6 +51,7 @@ type configParams struct {
 	StatFilename        string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
 	NodeCacheFilename   string   `long:"node-cache-filename" description:"save and load other nodes information to this file, improves cold start performance"  json:"node_cache_filename" toml:"node_cache_filename"`
 	NodeCacheLifetime   int      `long:"node-cache-lifetime" description:"nodes with last update older than this time (in minutes) will be removed from cache after loading it" json:"node_cache_lifetime" toml:"node_cache_lifetime" default:"1440"`
+	NodeCacheInfo       bool     `long:"node-cache-info" description:"show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively" json:"node_cache_info" toml:"node_cache_info"`
 }
 
 var params, cfgParams configParams
@@ -58,6 +59,11 @@ var params, cfgParams configParams
 type failedRoute struct {
 	channelPair [2]*lnrpc.Channel
 	expiration  *time.Time
+}
+
+type cachedNodeInfo struct {
+	*lnrpc.NodeInfo
+	Timestamp time.Time
 }
 
 type regolancer struct {
@@ -70,7 +76,7 @@ type regolancer struct {
 	toChannels    []*lnrpc.Channel
 	toChannelId   map[uint64]struct{}
 	channelPairs  map[string][2]*lnrpc.Channel
-	nodeCache     map[string]*lnrpc.NodeInfo
+	nodeCache     map[string]cachedNodeInfo
 	chanCache     map[uint64]*lnrpc.ChannelEdge
 	failureCache  map[string]failedRoute
 	excludeIn     map[uint64]struct{}
@@ -387,7 +393,7 @@ func main() {
 		log.Fatal(err)
 	}
 	r := regolancer{
-		nodeCache:    map[string]*lnrpc.NodeInfo{},
+		nodeCache:    map[string]cachedNodeInfo{},
 		chanCache:    map[uint64]*lnrpc.ChannelEdge{},
 		channelPairs: map[string][2]*lnrpc.Channel{},
 		failureCache: map[string]failedRoute{},
