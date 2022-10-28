@@ -138,6 +138,14 @@ func (r *regolancer) printRoute(ctx context.Context, route *lnrpc.Route) {
 	fmt.Printf("%s %s sat | %s ppm\n", faintWhiteColor("Total fee:"),
 		formatFee(route.TotalFeesMsat), formatFeePPM(route.TotalAmtMsat, route.TotalFeesMsat))
 	for i, hop := range route.Hops {
+		cached := ""
+		if params.NodeCacheInfo {
+			cached = errColor("x")
+			if _, ok := r.nodeCache[hop.PubKey]; ok {
+				cached = cyanColor("x")
+			}
+			cached += "|"
+		}
 		nodeInfo, err := r.getNodeInfo(ctx, hop.PubKey)
 		if err != nil {
 			errs = errs + err.Error() + "\n"
@@ -147,7 +155,7 @@ func (r *regolancer) printRoute(ctx context.Context, route *lnrpc.Route) {
 		if i > 0 {
 			fee = hiWhiteColorF("%-6d", route.Hops[i-1].FeeMsat)
 		}
-		fmt.Printf("%s %s [%s|%sch|%ssat|%s]\n", faintWhiteColor(hop.ChanId), fee, cyanColor(nodeInfo.Node.Alias),
+		fmt.Printf("%s %s [%s%s|%sch|%ssat|%s]\n", faintWhiteColor(hop.ChanId), fee, cached, cyanColor(nodeInfo.Node.Alias),
 			infoColor(nodeInfo.NumChannels), formatAmt(nodeInfo.TotalCapacity), infoColor(nodeInfo.Node.PubKey))
 	}
 	if errs != "" {
