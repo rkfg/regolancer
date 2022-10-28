@@ -118,11 +118,14 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 
 func (r *regolancer) getNodeInfo(ctx context.Context, pk string) (*lnrpc.NodeInfo, error) {
 	if nodeInfo, ok := r.nodeCache[pk]; ok {
-		return nodeInfo, nil
+		return nodeInfo.NodeInfo, nil
 	}
 	nodeInfo, err := r.lnClient.GetNodeInfo(ctx, &lnrpc.NodeInfoRequest{PubKey: pk})
 	if err == nil {
-		r.nodeCache[pk] = nodeInfo
+		r.nodeCache[pk] = cachedNodeInfo{
+			NodeInfo:  nodeInfo,
+			Timestamp: time.Now(),
+		}
 	}
 	return nodeInfo, err
 }

@@ -57,6 +57,11 @@ type failedRoute struct {
 	expiration  *time.Time
 }
 
+type cachedNodeInfo struct {
+	*lnrpc.NodeInfo
+	Timestamp time.Time
+}
+
 type regolancer struct {
 	lnClient      lnrpc.LightningClient
 	routerClient  routerrpc.RouterClient
@@ -67,7 +72,7 @@ type regolancer struct {
 	toChannels    []*lnrpc.Channel
 	toChannelId   map[uint64]struct{}
 	channelPairs  map[string][2]*lnrpc.Channel
-	nodeCache     map[string]*lnrpc.NodeInfo
+	nodeCache     map[string]cachedNodeInfo
 	chanCache     map[uint64]*lnrpc.ChannelEdge
 	failureCache  map[string]failedRoute
 	excludeIn     map[uint64]struct{}
@@ -237,7 +242,7 @@ func main() {
 		log.Fatal(err)
 	}
 	r := regolancer{
-		nodeCache:    map[string]*lnrpc.NodeInfo{},
+		nodeCache:    map[string]cachedNodeInfo{},
 		chanCache:    map[uint64]*lnrpc.ChannelEdge{},
 		channelPairs: map[string][2]*lnrpc.Channel{},
 		failureCache: map[string]failedRoute{},
