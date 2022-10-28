@@ -87,6 +87,7 @@ in `~/go/bin/linux_arm`.
   -s, --stat=                 save successful rebalance information to the specified CSV file
       --node-cache-filename=  save and load other nodes information to this file, improves cold start performance
       --node-cache-lifetime=  nodes with last update older than this time (in minutes) will be removed from cache after loading it (default: 1440)
+      --node-cache-info       show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively
 ```
 
 Look in `config.json.sample` or `config.toml.sample` for corresponding keys,
