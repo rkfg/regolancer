@@ -39,6 +39,7 @@ func makeChanSet(chanIds []uint64) (result map[uint64]struct{}) {
 }
 
 func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error {
+
 	for _, c := range r.channels {
 		if _, ok := r.excludeBoth[c.ChanId]; ok {
 			continue
@@ -87,7 +88,7 @@ func min(args ...int64) (result int64) {
 func (r *regolancer) pickChannelPair(amount, minAmount int64,
 	relFromAmount, relToAmount float64) (from uint64, to uint64, maxAmount int64, err error) {
 	if len(r.channelPairs) == 0 {
-		if !r.routeFound {
+		if !r.routeFound || len(r.failureCache) == 0 {
 			return 0, 0, 0, errors.New("no routes")
 		}
 		log.Print(errColor("No channel pairs left, expiring all failed routes"))
@@ -96,10 +97,14 @@ func (r *regolancer) pickChannelPair(amount, minAmount int64,
 			r.channelPairs[k] = v.channelPair
 			delete(r.failureCache, k)
 		}
+
 		r.routeFound = false
+
 	}
 	var fromChan, toChan *lnrpc.Channel
+
 	idx := rand.Int31n(int32(len(r.channelPairs)))
+
 	var pair [2]*lnrpc.Channel
 	for _, pair = range r.channelPairs {
 		if idx == 0 {

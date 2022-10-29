@@ -30,6 +30,7 @@ func (r *regolancer) createInvoice(ctx context.Context, amount int64) (result *l
 		Memo:   "Rebalance attempt",
 		Expiry: int64(time.Hour.Seconds() * 24)})
 	r.invoiceCache[amount] = result
+
 	return
 }
 
@@ -56,6 +57,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 		PaymentAddr:  invoice.PaymentAddr,
 		TotalAmtMsat: amount * 1000,
 	}
+
 	result, err := r.routerClient.SendToRouteV2(ctx,
 		&routerrpc.SendToRouteRequest{
 			PaymentHash: invoice.RHash,
@@ -133,6 +135,8 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 			f.Write([]byte(fmt.Sprintf("%d,%d,%d,%d,%d\n", time.Now().Unix(), route.Hops[0].ChanId,
 				lastHop.ChanId, route.TotalAmtMsat-route.TotalFeesMsat, route.TotalFeesMsat)))
 		}
+		// Necessary for Rapid Rebalancing
+		r.invalidateInvoice(amount)
 		return nil
 	}
 }

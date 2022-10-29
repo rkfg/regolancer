@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/rand"
 	"os"
@@ -19,36 +21,37 @@ import (
 )
 
 type configParams struct {
-	Config             string   `short:"f" long:"config" description:"config file path"`
-	Connect            string   `short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect" toml:"connect"`
-	TLSCert            string   `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert" toml:"tlscert"`
-	MacaroonDir        string   `long:"macaroon-dir" description:"path to the macaroon directory" required:"false" json:"macaroon_dir" toml:"macaroon_dir"`
-	MacaroonFilename   string   `long:"macaroon-filename" description:"macaroon filename" json:"macaroon_filename" toml:"macaroon_filename"`
-	Network            string   `short:"n" long:"network" description:"bitcoin network to use" json:"network" toml:"network"`
-	FromPerc           int64    `long:"pfrom" description:"channels with less than this inbound liquidity percentage will be considered as source channels" json:"pfrom" toml:"pfrom"`
-	ToPerc             int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto" toml:"pto"`
-	Perc               int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc" toml:"perc"`
-	Amount             int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount" toml:"amount"`
-	RelAmountTo        float64  `long:"rel-amount-to" description:"calculate amount as the target channel capacity fraction (for example, 0.2 means you want to achieve at most 20% target channel local balance)"`
-	RelAmountFrom      float64  `long:"rel-amount-from" description:"calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)"`
-	EconRatio          float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio" toml:"econ_ratio"`
-	EconRatioMaxPPM    int64    `long:"econ-ratio-max-ppm" description:"limits the max fee ppm for a rebalance when using econ ratio" json:"econ_ratio_max_ppm" toml:"econ_ratio_max_ppm"`
-	FeeLimitPPM        int64    `short:"F" long:"fee-limit-ppm" description:"don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)" json:"fee_limit_ppm" toml:"fee_limit_ppm"`
-	LostProfit         bool     `short:"l" long:"lost-profit" description:"also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee" json:"lost_profit" toml:"lost_profit"`
-	ProbeSteps         int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
-	MinAmount          int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
-	ExcludeChannelsIn  []string `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
-	ExcludeChannelsOut []string `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
-	ExcludeChannels    []string `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
-	ExcludeNodes       []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
-	ToChannel          []string `long:"to" description:"try only this channel as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
-	FromChannel        []string `long:"from" description:"try only this channel as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
-	AllowUnbalanceFrom bool     `long:"allow-unbalance-from" description:"let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50" json:"allow_unbalance_from" toml:"allow_unbalance_from"`
-	AllowUnbalanceTo   bool     `long:"allow-unbalance-to" description:"let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
-	StatFilename       string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
-	NodeCacheFilename  string   `long:"node-cache-filename" description:"save and load other nodes information to this file, improves cold start performance"  json:"node_cache_filename" toml:"node_cache_filename"`
-	NodeCacheLifetime  int      `long:"node-cache-lifetime" description:"nodes with last update older than this time (in minutes) will be removed from cache after loading it" json:"node_cache_lifetime" toml:"node_cache_lifetime" default:"1440"`
-	NodeCacheInfo      bool     `long:"node-cache-info" description:"show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively" json:"node_cache_info" toml:"node_cache_info"`
+	Config              string   `short:"f" long:"config" description:"config file path"`
+	Connect             string   `short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect" toml:"connect"`
+	TLSCert             string   `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert" toml:"tlscert"`
+	MacaroonDir         string   `long:"macaroon-dir" description:"path to the macaroon directory" required:"false" json:"macaroon_dir" toml:"macaroon_dir"`
+	MacaroonFilename    string   `long:"macaroon-filename" description:"macaroon filename" json:"macaroon_filename" toml:"macaroon_filename"`
+	Network             string   `short:"n" long:"network" description:"bitcoin network to use" json:"network" toml:"network"`
+	FromPerc            int64    `long:"pfrom" description:"channels with less than this inbound liquidity percentage will be considered as source channels" json:"pfrom" toml:"pfrom"`
+	ToPerc              int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto" toml:"pto"`
+	Perc                int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc" toml:"perc"`
+	Amount              int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount" toml:"amount"`
+	RelAmountTo         float64  `long:"rel-amount-to" description:"calculate amount as the target channel capacity fraction (for example, 0.2 means you want to achieve at most 20% target channel local balance)"`
+	RelAmountFrom       float64  `long:"rel-amount-from" description:"calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)"`
+	EconRatio           float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio" toml:"econ_ratio"`
+	EconRatioMaxPPM     int64    `long:"econ-ratio-max-ppm" description:"limits the max fee ppm for a rebalance when using econ ratio" json:"econ_ratio_max_ppm" toml:"econ_ratio_max_ppm"`
+	FeeLimitPPM         int64    `short:"F" long:"fee-limit-ppm" description:"don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)" json:"fee_limit_ppm" toml:"fee_limit_ppm"`
+	LostProfit          bool     `short:"l" long:"lost-profit" description:"also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee" json:"lost_profit" toml:"lost_profit"`
+	ProbeSteps          int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
+	AllowRapidRebalance bool     `long:"allow-rapid-rebalancing" description:"if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied" json:"allow_rapid_rebalance" toml:"allow_rapid_rebalance"`
+	MinAmount           int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
+	ExcludeChannelsIn   []string `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
+	ExcludeChannelsOut  []string `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
+	ExcludeChannels     []string `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
+	ExcludeNodes        []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
+	ToChannel           []string `long:"to" description:"try only this channel as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
+	FromChannel         []string `long:"from" description:"try only this channel as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
+	AllowUnbalanceFrom  bool     `long:"allow-unbalance-from" description:"let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50" json:"allow_unbalance_from" toml:"allow_unbalance_from"`
+	AllowUnbalanceTo    bool     `long:"allow-unbalance-to" description:"let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
+	StatFilename        string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
+	NodeCacheFilename   string   `long:"node-cache-filename" description:"save and load other nodes information to this file, improves cold start performance"  json:"node_cache_filename" toml:"node_cache_filename"`
+	NodeCacheLifetime   int      `long:"node-cache-lifetime" description:"nodes with last update older than this time (in minutes) will be removed from cache after loading it" json:"node_cache_lifetime" toml:"node_cache_lifetime" default:"1440"`
+	NodeCacheInfo       bool     `long:"node-cache-info" description:"show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively" json:"node_cache_info" toml:"node_cache_info"`
 }
 
 var params, cfgParams configParams
@@ -174,6 +177,17 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 		r.printRoute(ctx, route)
 		err = r.pay(ctx, amt, params.MinAmount, route, params.ProbeSteps)
 		if err == nil {
+
+			if params.AllowRapidRebalance {
+				_, err := tryRapidRebalance(ctx, r, from, to, route, amt)
+
+				if err != nil {
+					log.Printf("Rapid rebalance failed with %s", err)
+				} else {
+					log.Printf("Finished rapid rebalancing")
+				}
+			}
+
 			return nil, false
 		}
 		if retryErr, ok := err.(ErrRetry); ok {
@@ -185,6 +199,16 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 			} else {
 				err = r.pay(ctx, amt, 0, probedRoute, 0)
 				if err == nil {
+					if params.AllowRapidRebalance && params.MinAmount > 0 {
+						_, err := tryRapidRebalance(ctx, r, from, to, probedRoute, amt)
+
+						if err != nil {
+							log.Printf("Rapid rebalance failed with %s", err)
+						} else {
+							log.Printf("Finished rapid rebalancing")
+						}
+					}
+
 					return nil, false
 				} else {
 					r.invalidateInvoice(amt)
@@ -197,13 +221,115 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 	return nil, true
 }
 
-func main() {
-	rand.Seed(time.Now().UnixNano())
-	loadConfig()
-	_, err := flags.Parse(&params)
-	if err != nil {
-		os.Exit(1)
+func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, route *lnrpc.Route, amt int64) (successfullAtempts int, err error) {
+
+	rapidAttempt := 0
+
+	for {
+
+		log.Printf("Rapid rebalance attempt %s", hiWhiteColor(rapidAttempt+1))
+
+		cTo, err := r.getChanInfo(ctx, to)
+
+		if err != nil {
+			logErrorF("Error fetching target channel: %s", err)
+			return rapidAttempt, err
+		}
+		cFrom, err := r.getChanInfo(ctx, from)
+
+		if err != nil {
+			logErrorF("Error fetching source channel: %s", err)
+			return rapidAttempt, err
+		}
+
+		fromPeer, _ := hex.DecodeString(cFrom.Node1Pub)
+		if cFrom.Node1Pub == r.myPK {
+			fromPeer, _ = hex.DecodeString(cFrom.Node2Pub)
+		}
+		fromChan, err := r.lnClient.ListChannels(ctx, &lnrpc.ListChannelsRequest{ActiveOnly: true, PublicOnly: true, Peer: fromPeer})
+
+		if err != nil {
+			logErrorF("Error fetching source channel: %s", err)
+			return rapidAttempt, err
+
+		}
+		toPeer, _ := hex.DecodeString(cTo.Node1Pub)
+		if cTo.Node1Pub == r.myPK {
+			toPeer, _ = hex.DecodeString(cTo.Node2Pub)
+		}
+
+		toChan, err := r.lnClient.ListChannels(ctx, &lnrpc.ListChannelsRequest{ActiveOnly: true, PublicOnly: true, Peer: toPeer})
+
+		if err != nil {
+			logErrorF("Error fetching target channel: %s", err)
+			return rapidAttempt, err
+		}
+
+		for k, _ := range r.fromChannelId {
+			delete(r.fromChannelId, k)
+		}
+		r.fromChannelId = makeChanSet([]uint64{from})
+
+		for k, _ := range r.toChannelId {
+			delete(r.toChannelId, k)
+		}
+		r.toChannelId = makeChanSet([]uint64{to})
+
+		r.channels = r.channels[:0]
+		r.fromChannels = r.fromChannels[:0]
+		r.toChannels = r.toChannels[:0]
+
+		r.channels = append(r.channels, toChan.Channels...)
+		r.channels = append(r.channels, fromChan.Channels...)
+
+		for k, _ := range r.failureCache {
+			delete(r.failureCache, k)
+		}
+
+		for k, _ := range r.channelPairs {
+			delete(r.channelPairs, k)
+		}
+
+		err = r.getChannelCandidates(params.FromPerc, params.ToPerc, amt)
+
+		if err != nil {
+			logErrorF("Error selecting channel candidates: %s", err)
+			return rapidAttempt, err
+		}
+
+		from, to, amt, err = r.pickChannelPair(amt, params.MinAmount, params.RelAmountFrom, params.RelAmountTo)
+
+		if err != nil {
+			log.Printf(errColor("Error during picking channel: %s"), err)
+			return rapidAttempt, err
+		}
+
+		log.Printf("rapid fire starting with amount %s", hiWhiteColor(amt))
+
+		route, err = r.rebuildRoute(ctx, route, amt)
+
+		if err != nil {
+			log.Printf(errColor("Error building route: %s"), err)
+			return rapidAttempt, err
+		}
+
+		err = r.pay(ctx, amt, params.MinAmount, route, 0)
+
+		if err != nil {
+			log.Printf("Rebalance failed with %s", err)
+			break
+		} else {
+			rapidAttempt++
+		}
+
 	}
+	log.Printf("%s rapid rebalances were successful\n", hiWhiteColor(rapidAttempt))
+	return rapidAttempt, nil
+
+}
+
+func preflightChecks(params *configParams) error {
+
 	if params.Connect == "" {
 		params.Connect = "127.0.0.1:10009"
 	}
@@ -223,7 +349,7 @@ func main() {
 		params.EconRatio = 1
 	}
 	if params.EconRatioMaxPPM != 0 && params.FeeLimitPPM != 0 {
-		log.Fatalf(errColor("Error EconRatioMaxPPM and FeeLimitPPM not allowed at the same time (safety precaution)"))
+		return fmt.Errorf("use either econ-ratio-max-ppm or fee-limit-ppm but not both")
 	}
 	if params.Perc > 0 {
 		params.FromPerc = params.Perc
@@ -231,12 +357,36 @@ func main() {
 	}
 	if params.MinAmount > 0 && params.Amount > 0 &&
 		params.MinAmount > params.Amount {
-		log.Fatal("Minimum amount should be less than amount")
+		return fmt.Errorf("minimum amount should be less than amount")
 	}
 	if params.Amount > 0 &&
 		(params.RelAmountFrom > 0 || params.RelAmountTo > 0) {
-		log.Fatal("Use either precise amount or relative amounts but not both.")
+		return fmt.Errorf("use either precise amount or relative amounts but not both")
 	}
+
+	if (params.RelAmountFrom > 0 || params.RelAmountTo > 0) && params.AllowRapidRebalance {
+		return fmt.Errorf("use either relative amounts or rapid rebalance but not both")
+
+	}
+
+	return nil
+
+}
+
+func main() {
+	rand.Seed(time.Now().UnixNano())
+	loadConfig()
+	_, err := flags.Parse(&params)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	err = preflightChecks(&params)
+
+	if err != nil {
+		log.Fatal(errColor(err))
+	}
+
 	conn, err := lndclient.NewBasicConn(params.Connect, params.TLSCert, params.MacaroonDir, params.Network,
 		lndclient.MacFilename(params.MacaroonFilename))
 	if err != nil {
