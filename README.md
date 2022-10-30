@@ -78,7 +78,7 @@ in `~/go/bin/linux_arm`.
   -F, --fee-limit-ppm=           don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)
   -l, --lost-profit              also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee
   -b, --probe-steps=             if the payment fails at the last hop try to probe lower amount using this many steps
-      --allow-rapid-rebalancing  if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied
+      --allow-rapid-rebalance    if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied
       --min-amount=              if probing is enabled this will be the minimum amount to try
   -i, --exclude-channel-in=      don't use this channel as incoming (can be specified multiple times)
   -o, --exclude-channel-out=     don't use this channel as outgoing (can be specified multiple times)
