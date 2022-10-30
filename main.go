@@ -52,6 +52,7 @@ type configParams struct {
 	NodeCacheFilename   string   `long:"node-cache-filename" description:"save and load other nodes information to this file, improves cold start performance"  json:"node_cache_filename" toml:"node_cache_filename"`
 	NodeCacheLifetime   int      `long:"node-cache-lifetime" description:"nodes with last update older than this time (in minutes) will be removed from cache after loading it" json:"node_cache_lifetime" toml:"node_cache_lifetime"`
 	NodeCacheInfo       bool     `long:"node-cache-info" description:"show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively" json:"node_cache_info" toml:"node_cache_info"`
+	Version             bool     `short:"v" long:"version" description:"show program version and exit"`
 }
 
 var params, cfgParams configParams
@@ -329,7 +330,10 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 }
 
 func preflightChecks(params *configParams) error {
-
+	if params.Version {
+		printVersion()
+		os.Exit(1)
+	}
 	if params.Connect == "" {
 		params.Connect = "127.0.0.1:10009"
 	}
