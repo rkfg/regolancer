@@ -47,7 +47,7 @@ type configParams struct {
 	Exclude             []string `long:"exclude" description:"don't use this node or your channel for routing (can be specified multiple times)" json:"exclude" toml:"exclude"`
 	To                  []string `long:"to" description:"try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
 	From                []string `long:"from" description:"try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
-	FailTolerance       int64    `long:"fail-tolerance" description:"if a channel failed before during this rebalance but chosen again by lnd, and the forward amount differs by less than this ppm, exclude the channel" json:"fail_tolerance" toml:"fail_tolerance"`
+	FailTolerance       int64    `long:"fail-tolerance" description:"a payment that differs from the prior attempt by this ppm will be cancelled" json:"fail_tolerance" toml:"fail_tolerance"`
 	AllowUnbalanceFrom  bool     `long:"allow-unbalance-from" description:"let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50" json:"allow_unbalance_from" toml:"allow_unbalance_from"`
 	AllowUnbalanceTo    bool     `long:"allow-unbalance-to" description:"let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
 	StatFilename        string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
@@ -374,6 +374,7 @@ func preflightChecks(params *configParams) error {
 	if params.FailTolerance == 0 {
 		params.FailTolerance = 1000
 	}
+
 	if (params.RelAmountFrom > 0 || params.RelAmountTo > 0) && params.AllowRapidRebalance {
 		return fmt.Errorf("use either relative amounts or rapid rebalance but not both")
 
