@@ -66,24 +66,24 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 		if _, ok := r.excludeBoth[c.ChanId]; ok {
 			continue
 		}
-		if c.LocalBalance < c.Capacity*toPerc/100 && (params.AllowUnbalanceTo ||
-			c.LocalBalance+amount < c.Capacity/2) {
-			if _, ok := r.excludeIn[c.ChanId]; ok {
-				continue
-			}
+		if _, ok := r.excludeIn[c.ChanId]; !ok {
 			if _, ok := r.toChannelId[c.ChanId]; ok || len(r.toChannelId) == 0 {
-				r.toChannels = append(r.toChannels, c)
+				if c.LocalBalance < c.Capacity*toPerc/100 && (params.AllowUnbalanceTo ||
+					c.LocalBalance+amount < c.Capacity/2) {
+					r.toChannels = append(r.toChannels, c)
+				}
 			}
+
 		}
-		if c.RemoteBalance < c.Capacity*fromPerc/100 &&
-			(params.AllowUnbalanceFrom ||
-				c.RemoteBalance+amount < c.Capacity/2) {
-			if _, ok := r.excludeOut[c.ChanId]; ok {
-				continue
-			}
+		if _, ok := r.excludeOut[c.ChanId]; !ok {
 			if _, ok := r.fromChannelId[c.ChanId]; ok || len(r.fromChannelId) == 0 {
-				r.fromChannels = append(r.fromChannels, c)
+				if c.RemoteBalance < c.Capacity*fromPerc/100 &&
+					(params.AllowUnbalanceFrom ||
+						c.RemoteBalance+amount < c.Capacity/2) {
+					r.fromChannels = append(r.fromChannels, c)
+				}
 			}
+
 		}
 	}
 	for _, fc := range r.fromChannels {

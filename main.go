@@ -45,8 +45,8 @@ type configParams struct {
 	ExcludeChannels     []string `short:"e" long:"exclude-channel" description:"(DEPRECATED) don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
 	ExcludeNodes        []string `short:"d" long:"exclude-node" description:"(DEPRECATED) don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
 	Exclude             []string `long:"exclude" description:"don't use this node or your channel for routing (can be specified multiple times)" json:"exclude" toml:"exclude"`
-	ToChannel           []string `long:"to" description:"try only this channel as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
-	FromChannel         []string `long:"from" description:"try only this channel as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
+	To                  []string `long:"to" description:"try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
+	From                []string `long:"from" description:"try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
 	FailTolerance       int64    `long:"fail-tolerance" description:"if a channel failed before during this rebalance but chosen again by lnd, and the forward amount differs by less than this ppm, exclude the channel" json:"fail_tolerance" toml:"fail_tolerance"`
 	AllowUnbalanceFrom  bool     `long:"allow-unbalance-from" description:"let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50" json:"allow_unbalance_from" toml:"allow_unbalance_from"`
 	AllowUnbalanceTo    bool     `long:"allow-unbalance-to" description:"let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
@@ -435,11 +435,54 @@ func main() {
 	if err != nil {
 		log.Fatal("Error listing own channels: ", err)
 	}
-	if len(params.FromChannel) > 0 {
-		r.fromChannelId = makeChanSet(convertChanStringToInt(params.FromChannel))
+	if len(params.From) > 0 {
+		chans, nodes, err := parseNodeChannelIDs(params.From)
+		if err != nil {
+			log.Fatal("Error parsing source node/channel list:", err)
+		}
+
+		r.fromChannelId = chans
+
+		for _, node := range nodes {
+
+			channels, err := r.lnClient.ListChannels(infoCtx, &lnrpc.ListChannelsRequest{ActiveOnly: true, PublicOnly: true, Peer: node})
+
+			if err != nil {
+				log.Fatalf("Error fetching channels when filtering for source node \"%x\": %s", node, err)
+			}
+
+			for _, c := range channels.Channels {
+				if _, ok := r.fromChannelId[c.ChanId]; !ok {
+					r.fromChannelId[c.ChanId] = struct{}{}
+				}
+			}
+
+		}
+
 	}
-	if len(params.ToChannel) > 0 {
-		r.toChannelId = makeChanSet(convertChanStringToInt(params.ToChannel))
+	if len(params.To) > 0 {
+		chans, nodes, err := parseNodeChannelIDs(params.To)
+		if err != nil {
+			log.Fatal("Error parsing target node/channel list:", err)
+		}
+
+		r.toChannelId = chans
+
+		for _, node := range nodes {
+
+			channels, err := r.lnClient.ListChannels(infoCtx, &lnrpc.ListChannelsRequest{ActiveOnly: true, PublicOnly: true, Peer: node})
+
+			if err != nil {
+				log.Fatalf("Error fetching channels when filtering for target node \"%x\": %s", node, err)
+			}
+
+			for _, c := range channels.Channels {
+				if _, ok := r.toChannelId[c.ChanId]; !ok {
+					r.toChannelId[c.ChanId] = struct{}{}
+				}
+			}
+		}
+
 	}
 
 	r.excludeIn = makeChanSet(convertChanStringToInt(params.ExcludeChannelsIn))
