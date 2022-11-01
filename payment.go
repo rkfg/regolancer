@@ -79,9 +79,11 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 			return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(),
 				result.Failure.FailureSourceIndex)
 		}
+		prevHop := route.Hops[result.Failure.FailureSourceIndex-1]
+		failedHop := route.Hops[result.Failure.FailureSourceIndex]
 		nodeCtx, cancel := context.WithTimeout(ctx, time.Minute)
 		defer cancel()
-		node1, err := r.getNodeInfo(nodeCtx, route.Hops[result.Failure.FailureSourceIndex-1].PubKey)
+		node1, err := r.getNodeInfo(nodeCtx, prevHop.PubKey)
 		node1name := ""
 		node2name := ""
 		if err != nil {
@@ -89,14 +91,17 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 		} else {
 			node1name = node1.Node.Alias
 		}
-		node2, err := r.getNodeInfo(nodeCtx, route.Hops[result.Failure.FailureSourceIndex].PubKey)
+		node2, err := r.getNodeInfo(nodeCtx, failedHop.PubKey)
 		if err != nil {
 			node2name = fmt.Sprintf("node%d", result.Failure.FailureSourceIndex)
 		} else {
 			node2name = node2.Node.Alias
 		}
-		log.Printf("%s %s ⇒ %s", faintWhiteColor(result.Failure.Code.String()),
-			cyanColor(node1name), cyanColor(node2name))
+		log.Printf("%s %s ⇒ %s", faintWhiteColor(result.Failure.Code.String()), cyanColor(node1name), cyanColor(node2name))
+		if result.Failure.Code == lnrpc.Failure_TEMPORARY_CHANNEL_FAILURE {
+			r.addFailedChan(node1.Node.PubKey, node2.Node.PubKey, prevHop.
+				AmtToForwardMsat)
+		}
 		if probeSteps > 0 && int(result.Failure.FailureSourceIndex) == len(route.Hops)-2 &&
 			result.Failure.Code == lnrpc.Failure_TEMPORARY_CHANNEL_FAILURE {
 			fmt.Println("Probing route...")

@@ -46,6 +46,7 @@ type configParams struct {
 	ExcludeNodes        []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
 	ToChannel           []string `long:"to" description:"try only this channel as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
 	FromChannel         []string `long:"from" description:"try only this channel as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
+	FailTolerance       int64    `long:"fail-tolerance" description:"if a channel failed before during this rebalance but chosen again by lnd, and the forward amount differs by less than this ppm, exclude the channel" json:"fail_tolerance" toml:"fail_tolerance"`
 	AllowUnbalanceFrom  bool     `long:"allow-unbalance-from" description:"let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50" json:"allow_unbalance_from" toml:"allow_unbalance_from"`
 	AllowUnbalanceTo    bool     `long:"allow-unbalance-to" description:"let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
 	StatFilename        string   `short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
@@ -87,6 +88,8 @@ type regolancer struct {
 	statFilename  string
 	routeFound    bool
 	invoiceCache  map[int64]*lnrpc.AddInvoiceResponse
+	mcCache       map[string]int64
+	failedPairs   []*lnrpc.NodePair
 }
 
 func loadConfig() {
@@ -367,7 +370,9 @@ func preflightChecks(params *configParams) error {
 		(params.RelAmountFrom > 0 || params.RelAmountTo > 0) {
 		return fmt.Errorf("use either precise amount or relative amounts but not both")
 	}
-
+	if params.FailTolerance == 0 {
+		params.FailTolerance = 1000
+	}
 	if (params.RelAmountFrom > 0 || params.RelAmountTo > 0) && params.AllowRapidRebalance {
 		return fmt.Errorf("use either relative amounts or rapid rebalance but not both")
 
@@ -404,6 +409,7 @@ func main() {
 		chanCache:    map[uint64]*lnrpc.ChannelEdge{},
 		channelPairs: map[string][2]*lnrpc.Channel{},
 		failureCache: map[string]failedRoute{},
+		mcCache:      map[string]int64{},
 		statFilename: params.StatFilename,
 	}
 	r.lnClient = lnrpc.NewLightningClient(conn)
