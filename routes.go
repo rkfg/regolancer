@@ -108,12 +108,24 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 		UseMissionControl: true,
 		FeeLimit:          &lnrpc.FeeLimit{Limit: &lnrpc.FeeLimit_FixedMsat{FixedMsat: feeMsat}},
 		IgnoredNodes:      r.excludeNodes,
+		IgnoredPairs:      r.failedPairs,
 	})
 	if err != nil {
 		return nil, 0, err
 	}
+	result := []*lnrpc.Route{}
+	for i := range routes.Routes { // lnd always returns 1 route for now but just in case it changes
+		if err := r.validateRoute(routes.Routes[i]); err == nil {
+			result = append(result, routes.Routes[i])
+		} else {
+			log.Print(err)
+		}
+	}
+	if len(result) == 0 {
+		return r.getRoutes(ctx, from, to, amtMsat)
+	}
 	r.routeFound = true
-	return routes.Routes, feeMsat, nil
+	return result, feeMsat, nil
 }
 
 func (r *regolancer) getNodeInfo(ctx context.Context, pk string) (*lnrpc.NodeInfo, error) {
