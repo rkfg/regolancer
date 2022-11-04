@@ -82,11 +82,12 @@ in `~/go/bin/linux_arm`.
       --min-amount=              if probing is enabled this will be the minimum amount to try
   -i, --exclude-channel-in=      don't use this channel as incoming (can be specified multiple times)
   -o, --exclude-channel-out=     don't use this channel as outgoing (can be specified multiple times)
-  -e, --exclude-channel=         don't use this channel at all (can be specified multiple times)
-  -d, --exclude-node=            don't use this node for routing (can be specified multiple times)
+  -e, --exclude-channel=         (DEPRECATED) don't use this channel at all (can be specified multiple times)
+  -d, --exclude-node=            (DEPRECATED) don't use this node for routing (can be specified multiple times)
+      --exclude=                 don't use this node or your channel for routing (can be specified multiple times)
       --to=                      try only this channel as target (should satisfy other constraints too; can be specified multiple times)
       --from=                    try only this channel as source (should satisfy other constraints too; can be specified multiple times)
-      --fail-tolerance=        if a channel failed before during this rebalance but chosen again by lnd, and the forward amount differs by less than this ppm, exclude the channel
+      --fail-tolerance=          if a channel failed before during this rebalance but chosen again by lnd, and the forward amount differs by less than this ppm, exclude the channel
       --allow-unbalance-from     let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50
       --allow-unbalance-to       let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50
   -s, --stat=                    save successful rebalance information to the specified CSV file

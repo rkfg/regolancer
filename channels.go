@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -34,6 +35,27 @@ func makeChanSet(chanIds []uint64) (result map[uint64]struct{}) {
 	result = map[uint64]struct{}{}
 	for _, cid := range chanIds {
 		result[cid] = struct{}{}
+	}
+	return
+}
+
+func parseNodeChannelIDs(ids []string) (chans map[uint64]struct{}, nodes [][]byte, err error) {
+	chanIdStr := []string{}
+	nodePKStr := []string{}
+	for _, id := range ids {
+		if len(id) == 66 {
+			nodePKStr = append(nodePKStr, id)
+		} else {
+			chanIdStr = append(chanIdStr, id)
+		}
+	}
+	chans = makeChanSet(convertChanStringToInt(chanIdStr))
+	for _, pk := range nodePKStr {
+		nodePK, err := hex.DecodeString(pk)
+		if err != nil {
+			return nil, nil, err
+		}
+		nodes = append(nodes, nodePK)
 	}
 	return
 }
