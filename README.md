@@ -263,3 +263,8 @@ project were:
   are the same
 - since it's a user-oriented software, make the output pleasant to look at, the
   important bits should be highlighted and easy to read
+
+# Feedback and contact
+
+We have a Matrix room to discuss this program and solve issues, feel free to
+join [#regolancer:matrix.org](https://matrix.to/#/#regolancer:matrix.org)!
