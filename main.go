@@ -42,8 +42,9 @@ type configParams struct {
 	MinAmount           int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
 	ExcludeChannelsIn   []string `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
 	ExcludeChannelsOut  []string `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
-	ExcludeChannels     []string `short:"e" long:"exclude-channel" description:"don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
-	ExcludeNodes        []string `short:"d" long:"exclude-node" description:"don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
+	ExcludeChannels     []string `short:"e" long:"exclude-channel" description:"(DEPRECATED) don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
+	ExcludeNodes        []string `short:"d" long:"exclude-node" description:"(DEPRECATED) don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
+	Exclude             []string `long:"exclude" description:"don't use this node or your channel for routing (can be specified multiple times)" json:"exclude" toml:"exclude"`
 	ToChannel           []string `long:"to" description:"try only this channel as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
 	FromChannel         []string `long:"from" description:"try only this channel as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
 	FailTolerance       int64    `long:"fail-tolerance" description:"if a channel failed before during this rebalance but chosen again by lnd, and the forward amount differs by less than this ppm, exclude the channel" json:"fail_tolerance" toml:"fail_tolerance"`
@@ -269,12 +270,12 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 			return rapidAttempt, err
 		}
 
-		for k, _ := range r.fromChannelId {
+		for k := range r.fromChannelId {
 			delete(r.fromChannelId, k)
 		}
 		r.fromChannelId = makeChanSet([]uint64{from})
 
-		for k, _ := range r.toChannelId {
+		for k := range r.toChannelId {
 			delete(r.toChannelId, k)
 		}
 		r.toChannelId = makeChanSet([]uint64{to})
@@ -286,11 +287,11 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 		r.channels = append(r.channels, toChan.Channels...)
 		r.channels = append(r.channels, fromChan.Channels...)
 
-		for k, _ := range r.failureCache {
+		for k := range r.failureCache {
 			delete(r.failureCache, k)
 		}
 
-		for k, _ := range r.channelPairs {
+		for k := range r.channelPairs {
 			delete(r.channelPairs, k)
 		}
 
@@ -381,6 +382,13 @@ func preflightChecks(params *configParams) error {
 		params.NodeCacheLifetime = 1440
 	}
 
+	if len(params.ExcludeChannels) > 0 || len(params.ExcludeNodes) > 0 {
+		log.Print(infoColor("--exclude-channel and exclude_channel parameter are deprecated, use --exclude or exclude parameter instead for both channels and nodes"))
+		if len(params.Exclude) > 0 {
+			return fmt.Errorf("can't use --exclude and --exclude-channel/--exclude-node (or config parameters) at the same time")
+		}
+	}
+
 	return nil
 
 }
@@ -438,12 +446,22 @@ func main() {
 	r.excludeOut = makeChanSet(convertChanStringToInt(params.ExcludeChannelsOut))
 	r.excludeBoth = makeChanSet(convertChanStringToInt(params.ExcludeChannels))
 
-	r.invoiceCache = map[int64]*lnrpc.AddInvoiceResponse{}
-
 	err = r.makeNodeList(params.ExcludeNodes)
 	if err != nil {
 		log.Fatal("Error parsing excluded node list: ", err)
 	}
+
+	if len(params.Exclude) > 0 {
+		chans, nodes, err := parseNodeChannelIDs(params.Exclude)
+		if err != nil {
+			log.Fatal("Error parsing excluded node/channel list:", err)
+		}
+		r.excludeBoth = chans
+		r.excludeNodes = nodes
+	}
+
+	r.invoiceCache = map[int64]*lnrpc.AddInvoiceResponse{}
+
 	err = r.getChannelCandidates(params.FromPerc, params.ToPerc, params.Amount)
 
 	if err != nil {
