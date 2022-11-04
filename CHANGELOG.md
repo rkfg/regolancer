@@ -14,3 +14,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which accepts both channel and node IDs
 - `--from` and `--to` now accept node ids as well and will use all channels open
     to the specified nodes
+### Fixed
+- Channels excluded as targets are also excluded as sources in some situations
