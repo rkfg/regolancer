@@ -80,7 +80,7 @@ func (r *regolancer) calcEconFeeMsat(ctx context.Context, from, to uint64, amtMs
 }
 
 func (r *regolancer) calcFeeMsat(ctx context.Context, from, to uint64,
-	amtMsat int64, ratio float64) (feeMsat int64, lastPKstr string, err error) {
+	amtMsat int64) (feeMsat int64, lastPKstr string, err error) {
 	if params.FeeLimitPPM > 0 {
 		return r.calcFeeLimitMsat(ctx, to, amtMsat, params.FeeLimitPPM)
 	} else {
@@ -91,8 +91,7 @@ func (r *regolancer) calcFeeMsat(ctx context.Context, from, to uint64,
 func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int64) ([]*lnrpc.Route, int64, error) {
 	routeCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
-	feeMsat, lastPKstr, err := r.calcFeeMsat(routeCtx, from, to, amtMsat,
-		params.EconRatio)
+	feeMsat, lastPKstr, err := r.calcFeeMsat(routeCtx, from, to, amtMsat)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -195,25 +194,32 @@ func (r *regolancer) rebuildRoute(ctx context.Context, route *lnrpc.Route, amoun
 
 func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route,
 	goodAmount, badAmount, amount int64, steps int) (maxAmount int64, err error) {
-	if absoluteDeltaPPM(badAmount, amount) <= params.FailTolerance || absoluteDeltaPPM(amount, goodAmount) <= params.FailTolerance || amount == -goodAmount {
 
+	defer func() {
+		if ctx.Err() == context.DeadlineExceeded && goodAmount > 0 {
+			maxAmount = goodAmount
+			log.Printf("Probing timed out with value %s", hiWhiteColor(maxAmount))
+
+		}
+	}()
+
+	if absoluteDeltaPPM(badAmount, amount) <= params.FailTolerance || absoluteDeltaPPM(amount, goodAmount) <= params.FailTolerance || amount == -goodAmount {
 		bestAmount := hiWhiteColor(goodAmount)
 		if goodAmount <= 0 {
 			bestAmount = hiWhiteColor("unknown")
 			goodAmount = 0
 		}
 		log.Printf("Best amount is %s", bestAmount)
-		return goodAmount, nil
+		return
 	}
 	probedRoute, err := r.rebuildRoute(ctx, route, amount)
 	if err != nil {
-		return 0, err
+		return
 	}
 	maxFeeMsat, _, err := r.calcFeeMsat(ctx, probedRoute.Hops[0].ChanId,
-		probedRoute.Hops[len(probedRoute.Hops)-1].ChanId, amount*1000,
-		params.EconRatio)
+		probedRoute.Hops[len(probedRoute.Hops)-1].ChanId, amount*1000)
 	if err != nil {
-		return 0, err
+		return
 	}
 	if probedRoute.TotalFeesMsat > maxFeeMsat {
 		nextAmount := amount + (badAmount-amount)/2
@@ -242,7 +248,8 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route,
 		if result.Failure.Code == lnrpc.Failure_INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS { // payment can succeed
 			if steps == 1 {
 				log.Printf("best amount is %s", hiWhiteColor(amount))
-				return amount, nil
+				goodAmount = amount
+				return
 			}
 			nextAmount := amount + (badAmount-amount)/2
 			log.Printf("%s is good enough, trying amount %s, %s steps left",
@@ -260,7 +267,7 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route,
 				}
 				log.Printf("%s is too much, best amount is %s",
 					hiWhiteColor(amount), bestAmount)
-				return goodAmount, nil
+				return
 			}
 			var nextAmount int64
 			if goodAmount >= 0 {
