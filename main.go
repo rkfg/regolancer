@@ -371,6 +371,9 @@ func preflightChecks(params *configParams) error {
 		(params.RelAmountFrom > 0 || params.RelAmountTo > 0) {
 		return fmt.Errorf("use either precise amount or relative amounts but not both")
 	}
+	if params.Amount == 0 && params.RelAmountFrom == 0 && params.RelAmountTo == 0 {
+		return fmt.Errorf("no amount specified, use either --amount, --rel-amount-from, or --rel-amount-to")
+	}
 	if params.FailTolerance == 0 {
 		params.FailTolerance = 1000
 	}
@@ -388,6 +391,10 @@ func preflightChecks(params *configParams) error {
 		if len(params.Exclude) > 0 {
 			return fmt.Errorf("can't use --exclude and --exclude-channel/--exclude-node (or config parameters) at the same time")
 		}
+	}
+
+	if params.AllowUnbalanceFrom || params.AllowUnbalanceTo {
+		log.Print(infoColor("--allow-unbalance-from/to are deprecated and enabled by default, please remove them from your config or command line parameters"))
 	}
 
 	return nil
