@@ -15,7 +15,7 @@ func (r *regolancer) validateRoute(route *lnrpc.Route) error {
 	prevHopPK := r.myPK
 	for _, h := range route.Hops {
 		hopPK := h.PubKey
-		if fp, ok := r.mcCache[prevHopPK+hopPK]; ok && 1e6-h.AmtToForwardMsat*1e6/fp < params.FailTolerance {
+		if fp, ok := r.mcCache[prevHopPK+hopPK]; ok && absoluteDeltaPPM(fp, h.AmtToForwardMsat) < params.FailTolerance {
 			from, err := hex.DecodeString(prevHopPK)
 			if err != nil {
 				return err

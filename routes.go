@@ -195,7 +195,8 @@ func (r *regolancer) rebuildRoute(ctx context.Context, route *lnrpc.Route, amoun
 
 func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route,
 	goodAmount, badAmount, amount int64, steps int) (maxAmount int64, err error) {
-	if amount == badAmount || amount == goodAmount || amount == -goodAmount {
+	if absoluteDeltaPPM(badAmount, amount) <= params.FailTolerance || absoluteDeltaPPM(amount, goodAmount) <= params.FailTolerance || amount == -goodAmount {
+
 		bestAmount := hiWhiteColor(goodAmount)
 		if goodAmount <= 0 {
 			bestAmount = hiWhiteColor("unknown")
