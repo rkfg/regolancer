@@ -89,7 +89,7 @@ func (r *regolancer) calcFeeMsat(ctx context.Context, from, to uint64,
 }
 
 func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int64) ([]*lnrpc.Route, int64, error) {
-	routeCtx, cancel := context.WithTimeout(ctx, time.Second*30)
+	routeCtx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(params.TimeoutRoute))
 	defer cancel()
 	feeMsat, lastPKstr, err := r.calcFeeMsat(routeCtx, from, to, amtMsat)
 	if err != nil {

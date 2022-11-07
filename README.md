@@ -18,9 +18,10 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
 # Features
 
 - automatically pick source and target channel by local/remote liquidity ratio
-- retry indefinitely until it succeeds or 6 hours pass (currently hardcoded)
-- payments time out after 5 minutes (currently hardcoded) so if something's
-  stuck the process will continue shortly
+- retry indefinitely until it succeeds or 6 hours pass (by default)
+- payments time out after 5 minutes (by default) so if something's stuck the
+  process will continue shortly
+- timeouts can be customized
 - JSON/TOML config file to set some defaults you prefer
 - optional route probing using binary search to rebalance a smaller amount
 - optional rapid rebalancing using the same route for further rebalances 
@@ -94,6 +95,10 @@ in `~/go/bin/linux_arm`.
       --node-cache-filename=     save and load other nodes information to this file, improves cold start performance
       --node-cache-lifetime=     nodes with last update older than this time (in minutes) will be removed from cache after loading it (default: 1440)
       --node-cache-info          show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively
+      --timeout-rebalance=       max rebalance session time in minutes
+      --timeout-attempt=         max attempt time in minutes
+      --timeout-info=            max general info query time (local channels, node id etc.) in seconds
+      --timeout-route=           max channel selection and route query time in seconds
   -v, --version                  show program version and exit
 ```
 

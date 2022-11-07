@@ -47,3 +47,8 @@ lost_profit = true
     "821280210377179136",
     "03271338633d2d37b285dae4df40b413d8c6c791fbee7797bc5dc70812196d7d5c"
 ]
+
+timeout_rebalance = 360
+timeout_attempt = 5
+timeout_info = 30
+timeout_route = 30
