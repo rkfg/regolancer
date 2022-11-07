@@ -108,11 +108,13 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 			min := int64(0)
 			start := amount / 2
 			if minAmount > 0 && minAmount < amount {
+				// need to use -1 so we do not fail the first probing attempt
 				min = -minAmount - 1
 				start = minAmount
 			}
 			maxAmount, err := r.probeRoute(ctx, route, min, amount, start,
 				probeSteps)
+
 			if err != nil {
 				logErrorF("Probe error: %s", err)
 				return err
