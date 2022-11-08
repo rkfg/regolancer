@@ -36,5 +36,9 @@
         "821280210373779139",
         "757806x673x1",
         "03cde60a6323f7122d5178255766e38114b4722ede08f7c9e0c5df9b912cc201d6"
-    ]
+    ],
+    "timeout_rebalance": 360,
+    "timeout_attempt": 5,
+    "timeout_info": 30,
+    "timeout_route": 30
 }

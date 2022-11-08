@@ -54,6 +54,10 @@ type configParams struct {
 	NodeCacheFilename   string   `long:"node-cache-filename" description:"save and load other nodes information to this file, improves cold start performance"  json:"node_cache_filename" toml:"node_cache_filename"`
 	NodeCacheLifetime   int      `long:"node-cache-lifetime" description:"nodes with last update older than this time (in minutes) will be removed from cache after loading it" json:"node_cache_lifetime" toml:"node_cache_lifetime"`
 	NodeCacheInfo       bool     `long:"node-cache-info" description:"show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively" json:"node_cache_info" toml:"node_cache_info"`
+	TimeoutRebalance    int      `long:"timeout-rebalance" description:"max rebalance session time in minutes" json:"timeout_rebalance" toml:"timeout_rebalance"`
+	TimeoutAttempt      int      `long:"timeout-attempt" description:"max attempt time in minutes" json:"timeout_attempt" toml:"timeout_attempt"`
+	TimeoutInfo         int      `long:"timeout-info" description:"max general info query time (local channels, node id etc.) in seconds" json:"timeout_info" toml:"timeout_info"`
+	TimeoutRoute        int      `long:"timeout-route" description:"max channel selection and route query time in seconds" json:"timeout_route" toml:"timeout_route"`
 	Version             bool     `short:"v" long:"version" description:"show program version and exit"`
 }
 
@@ -159,7 +163,7 @@ func convertChanStringToInt(chanIds []string) (channels []uint64) {
 
 func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 	repeat bool) {
-	attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Minute*5)
+	attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Minute*time.Duration(params.TimeoutAttempt))
 
 	defer attemptCancel()
 
@@ -168,7 +172,7 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 		log.Printf(errColor("Error during picking channel: %s"), err)
 		return err, false
 	}
-	routeCtx, routeCtxCancel := context.WithTimeout(attemptCtx, time.Second*30)
+	routeCtx, routeCtxCancel := context.WithTimeout(attemptCtx, time.Second*time.Duration(params.TimeoutRoute))
 	defer routeCtxCancel()
 	routes, fee, err := r.getRoutes(routeCtx, from, to, amt*1000)
 	if err != nil {
@@ -327,7 +331,7 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 			return rapidAttempt, err
 		}
 
-		attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Minute*5)
+		attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Minute*time.Duration(params.TimeoutAttempt))
 
 		defer attemptCancel()
 
@@ -417,6 +421,22 @@ func preflightChecks(params *configParams) error {
 		log.Print(infoColor("--allow-unbalance-from/to are deprecated and enabled by default, please remove them from your config or command line parameters"))
 	}
 
+	if params.TimeoutAttempt == 0 {
+		params.TimeoutAttempt = 5
+	}
+
+	if params.TimeoutRebalance == 0 {
+		params.TimeoutRebalance = 360
+	}
+
+	if params.TimeoutInfo == 0 {
+		params.TimeoutInfo = 30
+	}
+
+	if params.TimeoutRoute == 0 {
+		params.TimeoutRoute = 30
+	}
+
 	return nil
 
 }
@@ -450,9 +470,9 @@ func main() {
 	}
 	r.lnClient = lnrpc.NewLightningClient(conn)
 	r.routerClient = routerrpc.NewRouterClient(conn)
-	mainCtx, mainCtxCancel := context.WithTimeout(context.Background(), time.Hour*6)
+	mainCtx, mainCtxCancel := context.WithTimeout(context.Background(), time.Minute*time.Duration(params.TimeoutRebalance))
 	defer mainCtxCancel()
-	infoCtx, infoCtxCancel := context.WithTimeout(mainCtx, time.Second*30)
+	infoCtx, infoCtxCancel := context.WithTimeout(mainCtx, time.Second*time.Duration(params.TimeoutInfo))
 	defer infoCtxCancel()
 	info, err := r.lnClient.GetInfo(infoCtx, &lnrpc.GetInfoRequest{})
 	if err != nil {

@@ -81,7 +81,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 		}
 		prevHop := route.Hops[result.Failure.FailureSourceIndex-1]
 		failedHop := route.Hops[result.Failure.FailureSourceIndex]
-		nodeCtx, cancel := context.WithTimeout(ctx, time.Minute)
+		nodeCtx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(params.TimeoutInfo))
 		defer cancel()
 		node1, err := r.getNodeInfo(nodeCtx, prevHop.PubKey)
 		node1name := ""

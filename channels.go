@@ -21,7 +21,7 @@ func formatChannelPair(a, b uint64) string {
 }
 
 func (r *regolancer) getChannels(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(params.TimeoutRoute))
 	defer cancel()
 	channels, err := r.lnClient.ListChannels(ctx, &lnrpc.ListChannelsRequest{ActiveOnly: true, PublicOnly: true})
 	if err != nil {
