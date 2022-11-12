@@ -507,6 +507,10 @@ func main() {
 
 		}
 
+		if len(r.fromChannelId) == 0 {
+			log.Fatal("No source nodes/channels selected, check if the ID is correct and node is online")
+		}
+
 	}
 	if len(params.To) > 0 {
 		chans, nodes, err := parseNodeChannelIDs(params.To)
@@ -531,6 +535,9 @@ func main() {
 			}
 		}
 
+		if len(r.toChannelId) == 0 {
+			log.Fatal("No target nodes/channels selected, check if the ID is correct and node is online")
+		}
 	}
 
 	r.excludeIn = makeChanSet(convertChanStringToInt(params.ExcludeChannelsIn))
