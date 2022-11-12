@@ -1,0 +1,5 @@
+*.macaroon
+*.toml
+*.json
+*.cert
+regolancer*
