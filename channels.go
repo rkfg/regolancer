@@ -215,7 +215,7 @@ func (r *regolancer) filterChannels(ctx context.Context, nodeChannelIDs []string
 	if err != nil {
 		log.Fatal("Error parsing node/channel list:", err)
 	}
-	// Needed bc of deprecated ExcludeChannelsIn feature
+
 	for id := range chans {
 		if _, ok := channels[id]; !ok {
 			channels[id] = struct{}{}
