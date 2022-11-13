@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0]
+### Added
+- `--exclude-from`/`--exclude-to` parameters that support both channel and node
+  IDs
+- `--info` parameter to see the channels selected and other effective settings
+  that will be used during rebalance
+- .gitignore to prevent commiting sensitive info accidentally
+
+### Changed
+- `--exclude-channel-in`/`--exclude-channel-out` are deprecated and should be
+  replaced with `--exclude-from`/`--exclude-to` (or respective config
+  parameters)
+### Fixed
+- Channel that receives Ctrl-C signal is now buffered to satisfy the
+  signal.Notify requirement
 ## [1.8.2]
 ### Added
 - Improved help message with grouped settings

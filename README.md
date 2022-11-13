@@ -113,6 +113,7 @@ Timeouts:
 Others:
   -s, --stat                   save successful rebalance information to the specified CSV file
   -v, --version                show program version and exit
+      --info                   show rebalance information
   -h, --help                   Show this help message
 ```
 
