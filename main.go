@@ -63,6 +63,7 @@ type configParams struct {
 	TimeoutRoute        int      `long:"timeout-route" description:"max channel selection and route query time in seconds" json:"timeout_route" toml:"timeout_route"`
 	StatFilename        string   `rego-grouping:"Others" short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
 	Version             bool     `short:"v" long:"version" description:"show program version and exit"`
+	Info                bool     `long:"info" description:"show rebalance information"`
 	Help                bool     `short:"h" long:"help" description:"Show this help message"`
 }
 
@@ -566,7 +567,6 @@ func main() {
 	if len(r.toChannels) == 0 {
 		log.Fatal("No target channels selected")
 	}
-	infoCtxCancel()
 	attempt := 1
 
 	err = r.loadNodeCache(params.NodeCacheFilename, params.NodeCacheLifetime,
@@ -575,6 +575,14 @@ func main() {
 		logErrorF("%s", err)
 	}
 	defer r.saveNodeCache(params.NodeCacheFilename, params.NodeCacheLifetime)
+	if params.Info {
+		err = r.info(infoCtx)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	infoCtxCancel()
 	stopChan := make(chan os.Signal, 1)
 	signal.Notify(stopChan, os.Interrupt)
 	go func() {
