@@ -603,7 +603,7 @@ func main() {
 		logErrorF("%s", err)
 	}
 	defer r.saveNodeCache(params.NodeCacheFilename, params.NodeCacheLifetime)
-	stopChan := make(chan os.Signal)
+	stopChan := make(chan os.Signal, 1)
 	signal.Notify(stopChan, os.Interrupt)
 	go func() {
 		<-stopChan
