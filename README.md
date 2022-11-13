@@ -64,7 +64,7 @@ in `~/go/bin/linux_arm`.
 Config:
   -f, --config                 config file path          
                                                                                            
-Node Connection:                                                
+Node Connection:
   -c, --connect                connect to lnd using host:port
   -t, --tlscert                path to tls.cert to connect
       --macaroon-dir           path to the macaroon directory
@@ -80,9 +80,11 @@ Common:
       --rel-amount-from        calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)
   -b, --probe-steps            if the payment fails at the last hop try to probe lower amount using this many steps
       --allow-rapid-rebalance  if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied
-      --min-amount             if probing is enabled this will be the minimum amount to try 
-  -i, --exclude-channel-in     don't use this channel as incoming (can be specified multiple times)
-  -o, --exclude-channel-out    don't use this channel as outgoing (can be specified multiple times)
+      --min-amount             if probing is enabled this will be the minimum amount to try
+  -i, --exclude-channel-in     (DEPRECATED) don't use this channel as incoming (can be specified multiple times)
+  -o, --exclude-channel-out    (DEPRECATED) don't use this channel as outgoing (can be specified multiple times)
+      --exclude-from           don't use this node or channel as source (can be specified multiple times)
+      --exclude-to             don't use this node or channel as target (can be specified multiple times)
   -e, --exclude-channel        (DEPRECATED) don't use this channel at all (can be specified multiple times)
   -d, --exclude-node           (DEPRECATED) don't use this node for routing (can be specified multiple times)
       --exclude                don't use this node or your channel for routing (can be specified multiple times)
@@ -93,7 +95,7 @@ Common:
       --allow-unbalance-to     (DEPRECATED) let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50
   -r, --econ-ratio             economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might
                                earn for routing out of the target channel)
-      --econ-ratio-max-ppm     limits the max fee ppm for a rebalance when using econ ratio 
+      --econ-ratio-max-ppm     limits the max fee ppm for a rebalance when using econ ratio
   -F, --fee-limit-ppm          don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)
   -l, --lost-profit            also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee
 
@@ -111,7 +113,6 @@ Timeouts:
 Others:
   -s, --stat                   save successful rebalance information to the specified CSV file
   -v, --version                show program version and exit
-      --info                   show rebalance information
   -h, --help                   Show this help message
 ```
 

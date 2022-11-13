@@ -63,10 +63,11 @@ func parseNodeChannelIDs(ids []string) (chans map[uint64]struct{}, nodes [][]byt
 func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error {
 
 	for _, c := range r.channels {
+
 		if _, ok := r.excludeBoth[c.ChanId]; ok {
 			continue
 		}
-		if _, ok := r.excludeIn[c.ChanId]; !ok {
+		if _, ok := r.excludeTo[c.ChanId]; !ok {
 			if _, ok := r.toChannelId[c.ChanId]; ok || len(r.toChannelId) == 0 {
 				if c.LocalBalance < c.Capacity*toPerc/100 {
 					r.toChannels = append(r.toChannels, c)
@@ -74,7 +75,7 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 			}
 
 		}
-		if _, ok := r.excludeOut[c.ChanId]; !ok {
+		if _, ok := r.excludeFrom[c.ChanId]; !ok {
 			if _, ok := r.fromChannelId[c.ChanId]; ok || len(r.fromChannelId) == 0 {
 				if c.RemoteBalance < c.Capacity*fromPerc/100 {
 					r.fromChannels = append(r.fromChannels, c)
@@ -192,5 +193,45 @@ func parseScid(chanId string) int64 {
 	scId.TxPosition = uint16(txPosition)
 
 	return int64(scId.ToUint64())
+
+}
+
+func (r *regolancer) getChannelForPeer(ctx context.Context, node []byte) []*lnrpc.Channel {
+
+	channels, err := r.lnClient.ListChannels(ctx, &lnrpc.ListChannelsRequest{ActiveOnly: true, PublicOnly: true, Peer: node})
+
+	if err != nil {
+		log.Fatalf("Error fetching channels when filtering for node \"%x\": %s", node, err)
+	}
+
+	return channels.Channels
+
+}
+
+func (r *regolancer) filterChannels(ctx context.Context, nodeChannelIDs []string) (channels map[uint64]struct{}) {
+
+	channels = map[uint64]struct{}{}
+	chans, nodes, err := parseNodeChannelIDs(nodeChannelIDs)
+	if err != nil {
+		log.Fatal("Error parsing node/channel list:", err)
+	}
+
+	for id := range chans {
+		if _, ok := channels[id]; !ok {
+			channels[id] = struct{}{}
+		}
+	}
+
+	for _, node := range nodes {
+		chans := r.getChannelForPeer(ctx, node)
+
+		for _, c := range chans {
+			if _, ok := channels[c.ChanId]; !ok {
+				channels[c.ChanId] = struct{}{}
+			}
+		}
+	}
+
+	return
 
 }

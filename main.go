@@ -38,8 +38,10 @@ type configParams struct {
 	ProbeSteps          int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
 	AllowRapidRebalance bool     `long:"allow-rapid-rebalance" description:"if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied" json:"allow_rapid_rebalance" toml:"allow_rapid_rebalance"`
 	MinAmount           int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
-	ExcludeChannelsIn   []string `short:"i" long:"exclude-channel-in" description:"don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
-	ExcludeChannelsOut  []string `short:"o" long:"exclude-channel-out" description:"don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
+	ExcludeChannelsIn   []string `short:"i" long:"exclude-channel-in" description:"(DEPRECATED) don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
+	ExcludeChannelsOut  []string `short:"o" long:"exclude-channel-out" description:"(DEPRECATED) don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
+	ExcludeFrom         []string `long:"exclude-from" description:"don't use this node or channel as source (can be specified multiple times)" json:"exclude_from" toml:"exclude_from"`
+	ExcludeTo           []string `long:"exclude-to" description:"don't use this node or channel as target (can be specified multiple times)" json:"exclude_to" toml:"exclude_to"`
 	ExcludeChannels     []string `short:"e" long:"exclude-channel" description:"(DEPRECATED) don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
 	ExcludeNodes        []string `short:"d" long:"exclude-node" description:"(DEPRECATED) don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
 	Exclude             []string `long:"exclude" description:"don't use this node or your channel for routing (can be specified multiple times)" json:"exclude" toml:"exclude"`
@@ -89,8 +91,8 @@ type regolancer struct {
 	nodeCache     map[string]cachedNodeInfo
 	chanCache     map[uint64]*lnrpc.ChannelEdge
 	failureCache  map[string]failedRoute
-	excludeIn     map[uint64]struct{}
-	excludeOut    map[uint64]struct{}
+	excludeTo     map[uint64]struct{}
+	excludeFrom   map[uint64]struct{}
 	excludeBoth   map[uint64]struct{}
 	excludeNodes  [][]byte
 	statFilename  string
@@ -407,39 +409,43 @@ func preflightChecks(params *configParams) error {
 
 	if (params.RelAmountFrom > 0 || params.RelAmountTo > 0) && params.AllowRapidRebalance {
 		return fmt.Errorf("use either relative amounts or rapid rebalance but not both")
-
 	}
 	if params.NodeCacheLifetime == 0 {
 		params.NodeCacheLifetime = 1440
 	}
-
 	if len(params.ExcludeChannels) > 0 || len(params.ExcludeNodes) > 0 {
 		log.Print(infoColor("--exclude-channel and exclude_channel parameter are deprecated, use --exclude or exclude parameter instead for both channels and nodes"))
 		if len(params.Exclude) > 0 {
 			return fmt.Errorf("can't use --exclude and --exclude-channel/--exclude-node (or config parameters) at the same time")
 		}
 	}
-
 	if params.AllowUnbalanceFrom || params.AllowUnbalanceTo {
 		log.Print(infoColor("--allow-unbalance-from/to are deprecated and enabled by default, please remove them from your config or command line parameters"))
 	}
-
+	if len(params.ExcludeChannelsIn) > 0 {
+		log.Print(infoColor("--exclude-channel-in are deprecated use --exclude-to instead, please remove them from your config or command line parameters"))
+		if len(params.ExcludeTo) > 0 {
+			return fmt.Errorf("can't use --exclude-to and --exclude-channel-in (or config parameters) at the same time")
+		}
+	}
+	if len(params.ExcludeChannelsOut) > 0 {
+		log.Print(infoColor("--exclude-channel-out are deprecated use --exclude-from instead, please remove them from your config or command line parameters"))
+		if len(params.ExcludeFrom) > 0 {
+			return fmt.Errorf("can't use --exclude-from and --exclude-channel-out (or config parameters) at the same time")
+		}
+	}
 	if params.TimeoutAttempt == 0 {
 		params.TimeoutAttempt = 5
 	}
-
 	if params.TimeoutRebalance == 0 {
 		params.TimeoutRebalance = 360
 	}
-
 	if params.TimeoutInfo == 0 {
 		params.TimeoutInfo = 30
 	}
-
 	if params.TimeoutRoute == 0 {
 		params.TimeoutRoute = 30
 	}
-
 	return nil
 
 }
@@ -506,67 +512,33 @@ func main() {
 	if err != nil {
 		log.Fatal("Error listing own channels: ", err)
 	}
+
 	if len(params.From) > 0 {
-		chans, nodes, err := parseNodeChannelIDs(params.From)
-		if err != nil {
-			log.Fatal("Error parsing source node/channel list:", err)
-		}
-
-		r.fromChannelId = chans
-
-		for _, node := range nodes {
-
-			channels, err := r.lnClient.ListChannels(infoCtx, &lnrpc.ListChannelsRequest{ActiveOnly: true, PublicOnly: true, Peer: node})
-
-			if err != nil {
-				log.Fatalf("Error fetching channels when filtering for source node \"%x\": %s", node, err)
-			}
-
-			for _, c := range channels.Channels {
-				if _, ok := r.fromChannelId[c.ChanId]; !ok {
-					r.fromChannelId[c.ChanId] = struct{}{}
-				}
-			}
-
-		}
-
+		r.fromChannelId = r.filterChannels(infoCtx, params.From)
 		if len(r.fromChannelId) == 0 {
 			log.Fatal("No source nodes/channels selected, check if the ID is correct and node is online")
 		}
-
 	}
 	if len(params.To) > 0 {
-		chans, nodes, err := parseNodeChannelIDs(params.To)
-		if err != nil {
-			log.Fatal("Error parsing target node/channel list:", err)
-		}
-
-		r.toChannelId = chans
-
-		for _, node := range nodes {
-
-			channels, err := r.lnClient.ListChannels(infoCtx, &lnrpc.ListChannelsRequest{ActiveOnly: true, PublicOnly: true, Peer: node})
-
-			if err != nil {
-				log.Fatalf("Error fetching channels when filtering for target node \"%x\": %s", node, err)
-			}
-
-			for _, c := range channels.Channels {
-				if _, ok := r.toChannelId[c.ChanId]; !ok {
-					r.toChannelId[c.ChanId] = struct{}{}
-				}
-			}
-		}
-
+		r.toChannelId = r.filterChannels(infoCtx, params.To)
 		if len(r.toChannelId) == 0 {
 			log.Fatal("No target nodes/channels selected, check if the ID is correct and node is online")
 		}
 	}
 
-	r.excludeIn = makeChanSet(convertChanStringToInt(params.ExcludeChannelsIn))
-	r.excludeOut = makeChanSet(convertChanStringToInt(params.ExcludeChannelsOut))
-	r.excludeBoth = makeChanSet(convertChanStringToInt(params.ExcludeChannels))
+	if len(params.ExcludeFrom) > 0 {
+		r.excludeFrom = r.filterChannels(infoCtx, params.ExcludeFrom)
+	} else {
+		r.excludeFrom = makeChanSet(convertChanStringToInt(params.ExcludeChannelsOut))
+	}
 
+	if len(params.ExcludeTo) > 0 {
+		r.excludeTo = r.filterChannels(infoCtx, params.ExcludeTo)
+	} else {
+		r.excludeTo = makeChanSet(convertChanStringToInt(params.ExcludeChannelsIn))
+	}
+
+	r.excludeBoth = makeChanSet(convertChanStringToInt(params.ExcludeChannels))
 	err = r.makeNodeList(params.ExcludeNodes)
 	if err != nil {
 		log.Fatal("Error parsing excluded node list: ", err)
