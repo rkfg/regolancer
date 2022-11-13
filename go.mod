@@ -9,6 +9,7 @@ require (
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/lightninglabs/lndclient v0.15.1-0
 	github.com/lightningnetwork/lnd v0.15.1-beta.rc1
+	github.com/mattn/go-runewidth v0.0.14
 	golang.org/x/sys v0.1.0
 )
 
@@ -83,7 +84,6 @@ require (
 	github.com/ltcsuite/ltcd v0.0.0-20190101042124-f37f8bf35796 // indirect
 	github.com/mattn/go-colorable v0.1.9 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
-	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/mholt/archiver/v3 v3.5.0 // indirect
 	github.com/miekg/dns v1.1.43 // indirect
