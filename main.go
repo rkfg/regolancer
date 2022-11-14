@@ -20,6 +20,7 @@ import (
 	"github.com/lightninglabs/lndclient"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
+	"github.com/rkfg/regolancer/helpmessage"
 )
 
 type configParams struct {
@@ -465,16 +466,16 @@ func main() {
 
 	// Print own Help message instead of using the builtin Help function of goflags to group output
 	if params.Help {
-		var opt Options
+		var opt helpmessage.Options
 		if reflect.ValueOf(params).Kind() == reflect.Struct {
 			v := reflect.ValueOf(params)
-			err := scanStruct(v, &opt)
+			err := helpmessage.ScanStruct(v, &opt)
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
 			var b bytes.Buffer
-			WriteHelp(&opt, parser, &b)
+			helpmessage.WriteHelp(&opt, parser, &b)
 		}
 		os.Exit(1)
 	}
