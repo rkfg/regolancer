@@ -1,4 +1,4 @@
-package main
+package helpmessage
 
 import (
 	"bufio"
@@ -11,7 +11,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -40,7 +39,7 @@ type Options struct {
 	options []*Option
 }
 
-func scanStruct(realval reflect.Value, opt *Options) error {
+func ScanStruct(realval reflect.Value, opt *Options) error {
 
 	stype := realval.Type()
 
@@ -142,14 +141,6 @@ func getAlignmentInfo(options *Options, p *flags.Parser) alignmentInfo {
 	}
 
 	return ret
-}
-
-func getTerminalColumns() int {
-	ws, err := unix.IoctlGetWinsize(0, unix.TIOCGWINSZ)
-	if err != nil {
-		return 80
-	}
-	return int(ws.Col)
 }
 
 type alignmentInfo struct {
