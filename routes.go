@@ -205,9 +205,10 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route,
 
 	if absoluteDeltaPPM(badAmount, amount) <= params.FailTolerance || absoluteDeltaPPM(amount, goodAmount) <= params.FailTolerance || amount == -goodAmount {
 		bestAmount := hiWhiteColor(goodAmount)
+		maxAmount = goodAmount
 		if goodAmount <= 0 {
 			bestAmount = hiWhiteColor("unknown")
-			goodAmount = 0
+			maxAmount = 0
 		}
 		log.Printf("Best amount is %s", bestAmount)
 		return
@@ -248,7 +249,7 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route,
 		if result.Failure.Code == lnrpc.Failure_INCORRECT_OR_UNKNOWN_PAYMENT_DETAILS { // payment can succeed
 			if steps == 1 {
 				log.Printf("best amount is %s", hiWhiteColor(amount))
-				goodAmount = amount
+				maxAmount = amount
 				return
 			}
 			nextAmount := amount + (badAmount-amount)/2
@@ -260,10 +261,11 @@ func (r *regolancer) probeRoute(ctx context.Context, route *lnrpc.Route,
 		}
 		if result.Failure.Code == lnrpc.Failure_TEMPORARY_CHANNEL_FAILURE {
 			if steps == 1 {
+				maxAmount = goodAmount
 				bestAmount := hiWhiteColor(goodAmount)
 				if goodAmount <= 0 {
 					bestAmount = hiWhiteColor("unknown")
-					goodAmount = 0
+					maxAmount = 0
 				}
 				log.Printf("%s is too much, best amount is %s",
 					hiWhiteColor(amount), bestAmount)
