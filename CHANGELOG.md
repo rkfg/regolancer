@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Exit codes for failed rebalances (2 for global timeout and 1 for all
   other reasons)
+### Fixed
+- Incorrect lost profit description
 ## [1.9.1]
 ### Fixed
 - Probing doesn't return actual learned value and as such payment never happens
