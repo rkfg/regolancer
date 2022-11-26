@@ -453,6 +453,11 @@ func preflightChecks(params *configParams) error {
 }
 
 func main() {
+	exitCode := 0
+	defer func() {
+		os.Exit(exitCode)
+	}()
+
 	rand.Seed(time.Now().UnixNano())
 
 	loadConfig()
@@ -477,7 +482,7 @@ func main() {
 			var b bytes.Buffer
 			helpmessage.WriteHelp(&opt, parser, &b)
 		}
-		os.Exit(1)
+		return
 	}
 
 	err = preflightChecks(&params)
@@ -593,12 +598,16 @@ func main() {
 	}()
 
 	for {
-		_, retry := tryRebalance(mainCtx, &r, &attempt)
+		err, retry := tryRebalance(mainCtx, &r, &attempt)
 		if mainCtx.Err() == context.DeadlineExceeded {
 			log.Println(errColor("Rebalancing timed out"))
+			exitCode = 2
 			return
 		}
 		if !retry {
+			if err != nil {
+				exitCode = 1
+			}
 			return
 		}
 	}
