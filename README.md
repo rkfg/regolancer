@@ -97,7 +97,7 @@ Common:
                                earn for routing out of the target channel)
       --econ-ratio-max-ppm     limits the max fee ppm for a rebalance when using econ ratio
   -F, --fee-limit-ppm          don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)
-  -l, --lost-profit            also consider the outbound channel fees when looking for profitable routes so that outbound_fee+inbound_fee < route_fee
+  -l, --lost-profit            also consider the source channel fee when looking for profitable routes so that route_fee < target_fee * econ_ratio - source_fee
 
 Node Cache:
       --node-cache-filename    save and load other nodes information to this file, improves cold start performance
