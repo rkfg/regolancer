@@ -30,8 +30,12 @@ func (r *regolancer) loadNodeCache(filename string, exp int, doLock bool) error 
 	if doLock {
 		log.Printf("Loading node cache from %s", filename)
 		l := lock()
-		l.RLock()
+		err := l.RLock()
 		defer l.Unlock()
+
+		if err != nil {
+			return fmt.Errorf("error take shared lock on file %s: %s", filename, err)
+		}
 	}
 	f, err := os.Open(filename)
 	if err != nil {
@@ -61,11 +65,15 @@ func (r *regolancer) saveNodeCache(filename string, exp int) error {
 	log.Printf("Saving node cache to %s", filename)
 
 	l := lock()
-	l.Lock()
+	err := l.Lock()
 	defer l.Unlock()
 
+	if err != nil {
+		return fmt.Errorf("error take exclusive lock on file %s: %s", filename, err)
+	}
+
 	old := regolancer{nodeCache: map[string]cachedNodeInfo{}}
-	err := old.loadNodeCache(filename, exp, false)
+	err = old.loadNodeCache(filename, exp, false)
 
 	if err != nil {
 		logErrorF("Error merging cache, saving anew: %s", err)
