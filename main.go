@@ -80,6 +80,12 @@ type cachedNodeInfo struct {
 	Timestamp time.Time
 }
 
+type rebalanceResult struct {
+	successfulAttempts int
+	successfulAmt      int64
+	paidFeeMsat        int64
+}
+
 type regolancer struct {
 	lnClient      lnrpc.LightningClient
 	routerClient  routerrpc.RouterClient
@@ -181,7 +187,7 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 	}
 	routeCtx, routeCtxCancel := context.WithTimeout(attemptCtx, time.Second*time.Duration(params.TimeoutRoute))
 	defer routeCtxCancel()
-	routes, fee, err := r.getRoutes(routeCtx, from, to, amt*1000)
+	routes, feeMsat, err := r.getRoutes(routeCtx, from, to, amt*1000)
 	if err != nil {
 		if routeCtx.Err() == context.DeadlineExceeded {
 			log.Print(errColor("Timed out looking for a route"))
@@ -193,16 +199,18 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 	routeCtxCancel()
 	for _, route := range routes {
 		log.Printf("Attempt %s, amount: %s (max fee: %s sat | %s ppm )",
-			hiWhiteColorF("#%d", *attempt), hiWhiteColor(amt), formatFee(fee), formatFeePPM(amt*1000, fee))
+			hiWhiteColorF("#%d", *attempt), hiWhiteColor(amt), formatFee(feeMsat), formatFeePPM(amt*1000, feeMsat))
 		r.printRoute(attemptCtx, route)
 		err = r.pay(attemptCtx, amt, params.MinAmount, route, params.ProbeSteps)
 		if err == nil {
 
 			if params.AllowRapidRebalance {
-				attempt, rebalanceAmt, _ := tryRapidRebalance(ctx, r, from, to, route, amt)
+				rebalanceResult, _ := tryRapidRebalance(ctx, r, from, to, route, amt, feeMsat)
 
-				if attempt > 0 {
-					log.Printf("%s rapid rebalances were successful, total amount rebalanced: %s sats \n", hiWhiteColor(attempt), hiWhiteColor(rebalanceAmt))
+				if rebalanceResult.successfulAttempts > 0 {
+					log.Printf("%s rapid rebalances were successful, total amount: %s (fee: %s sat | %s ppm)\n",
+						hiWhiteColor(rebalanceResult.successfulAttempts), hiWhiteColor(rebalanceResult.successfulAmt),
+						formatFee(rebalanceResult.paidFeeMsat), formatFeePPM(rebalanceResult.successfulAmt*1000, rebalanceResult.paidFeeMsat))
 				}
 				log.Printf("Finished rapid rebalancing")
 			}
@@ -219,10 +227,12 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 				err = r.pay(ctx, amt, 0, probedRoute, 0)
 				if err == nil {
 					if params.AllowRapidRebalance && params.MinAmount > 0 {
-						attempt, rebalanceAmt, _ := tryRapidRebalance(ctx, r, from, to, probedRoute, amt)
+						rebalanceResult, _ := tryRapidRebalance(ctx, r, from, to, probedRoute, amt, feeMsat)
 
-						if attempt > 0 {
-							log.Printf("%s rapid rebalances were successful, total amount rebalanced: %s sats \n", hiWhiteColor(attempt), hiWhiteColor(rebalanceAmt))
+						if rebalanceResult.successfulAttempts > 0 {
+							log.Printf("%s rapid rebalances were successful, total amount: %s (fee: %s sat | %s ppm)\n",
+								hiWhiteColor(rebalanceResult.successfulAttempts), hiWhiteColor(rebalanceResult.successfulAmt),
+								formatFee(rebalanceResult.paidFeeMsat), formatFeePPM(rebalanceResult.successfulAmt*1000, rebalanceResult.paidFeeMsat))
 						}
 						log.Printf("Finished rapid rebalancing")
 					}
@@ -244,7 +254,12 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 	return nil, true
 }
 
-func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, route *lnrpc.Route, amt int64) (successfulAttempts int, successfulAmt int64, err error) {
+func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, route *lnrpc.Route, amt int64, feeMsat int64) (rebalanceResult, error) {
+
+	successfulAttempts := 0
+	// Include Initial Rebalance
+	successfulAmt := amt
+	paidFeeMsat := feeMsat
 
 	for {
 
@@ -254,13 +269,13 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 
 		if err != nil {
 			logErrorF("Error fetching target channel: %s", err)
-			return successfulAttempts, successfulAmt, err
+			return rebalanceResult{successfulAttempts, successfulAmt, paidFeeMsat}, err
 		}
 		cFrom, err := r.getChanInfo(ctx, from)
 
 		if err != nil {
 			logErrorF("Error fetching source channel: %s", err)
-			return successfulAttempts, successfulAmt, err
+			return rebalanceResult{successfulAttempts, successfulAmt, paidFeeMsat}, err
 		}
 
 		fromPeer, _ := hex.DecodeString(cFrom.Node1Pub)
@@ -271,7 +286,7 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 
 		if err != nil {
 			logErrorF("Error fetching source channel: %s", err)
-			return successfulAttempts, successfulAmt, err
+			return rebalanceResult{successfulAttempts, successfulAmt, paidFeeMsat}, err
 
 		}
 		toPeer, _ := hex.DecodeString(cTo.Node1Pub)
@@ -283,7 +298,7 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 
 		if err != nil {
 			logErrorF("Error fetching target channel: %s", err)
-			return successfulAttempts, successfulAmt, err
+			return rebalanceResult{successfulAttempts, successfulAmt, paidFeeMsat}, err
 		}
 
 		for k := range r.fromChannelId {
@@ -315,14 +330,14 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 
 		if err != nil {
 			logErrorF("Error selecting channel candidates: %s", err)
-			return successfulAttempts, successfulAmt, err
+			return rebalanceResult{successfulAttempts, successfulAmt, paidFeeMsat}, err
 		}
 
 		from, to, amt, err = r.pickChannelPair(amt, params.MinAmount, params.RelAmountFrom, params.RelAmountTo)
 
 		if err != nil {
 			log.Printf(errColor("Error during picking channel: %s"), err)
-			return successfulAttempts, successfulAmt, err
+			return rebalanceResult{successfulAttempts, successfulAmt, paidFeeMsat}, err
 		}
 
 		log.Printf("rapid fire starting with amount %s", hiWhiteColor(amt))
@@ -331,7 +346,7 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 
 		if err != nil {
 			log.Printf(errColor("Error building route: %s"), err)
-			return successfulAttempts, successfulAmt, err
+			return rebalanceResult{successfulAttempts, successfulAmt, paidFeeMsat}, err
 		}
 
 		attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Minute*time.Duration(params.TimeoutAttempt))
@@ -344,7 +359,7 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 
 		if attemptCtx.Err() == context.DeadlineExceeded {
 			log.Print(errColor("Rapid rebalance attempt timed out"))
-			return successfulAttempts, successfulAmt, attemptCtx.Err()
+			return rebalanceResult{successfulAttempts, successfulAmt, paidFeeMsat}, attemptCtx.Err()
 		}
 
 		if err != nil {
@@ -353,9 +368,10 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64, rout
 		} else {
 			successfulAttempts++
 			successfulAmt += amt
+			paidFeeMsat += route.GetTotalFeesMsat()
 		}
 	}
-	return successfulAttempts, successfulAmt, nil
+	return rebalanceResult{successfulAttempts, successfulAmt, paidFeeMsat}, nil
 }
 
 func preflightChecks(params *configParams) error {
