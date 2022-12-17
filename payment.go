@@ -127,7 +127,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 		return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(), result.Failure.FailureSourceIndex)
 	} else {
 		log.Printf("Success! Paid %s in fees, %s ppm",
-			formatFee(result.Route.TotalFeesMsat), formatFeePPM(result.Route.TotalAmtMsat, result.Route.TotalFeesMsat))
+			formatFee(result.Route.TotalFeesMsat), formatFeePPM(result.Route.TotalAmtMsat-result.Route.TotalFeesMsat, result.Route.TotalFeesMsat))
 		if r.statFilename != "" {
 
 			l := lock()
