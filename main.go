@@ -226,17 +226,6 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 			} else {
 				err = r.pay(ctx, amt, 0, probedRoute, 0)
 				if err == nil {
-					if params.AllowRapidRebalance && params.MinAmount > 0 {
-						rebalanceResult, _ := tryRapidRebalance(ctx, r, from, to, probedRoute, amt, feeMsat)
-
-						if rebalanceResult.successfulAttempts > 0 {
-							log.Printf("%s rapid rebalances were successful, total amount: %s (fee: %s sat | %s ppm)\n",
-								hiWhiteColor(rebalanceResult.successfulAttempts), hiWhiteColor(rebalanceResult.successfulAmt),
-								formatFee(rebalanceResult.paidFeeMsat), formatFeePPM(rebalanceResult.successfulAmt*1000, rebalanceResult.paidFeeMsat))
-						}
-						log.Printf("Finished rapid rebalancing")
-					}
-
 					return nil, false
 				} else {
 					r.invalidateInvoice(amt)
@@ -258,14 +247,29 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64,
 	route *lnrpc.Route, amt int64, feeMsat int64) (result rebalanceResult,
 	err error) {
 
+	var (
+		routeLocal     *lnrpc.Route
+		amtLocal       int64
+		accelerator    int64 = 1
+		hittingTheWall bool
+	)
 	result.successfulAttempts = 0
 	// Include Initial Rebalance
 	result.successfulAmt = amt
 	result.paidFeeMsat = feeMsat
 
 	for {
+		if hittingTheWall {
+			accelerator >>= 1
+		} else {
+			accelerator <<= 1
+		}
+		amtLocal = accelerator * amt
 
-		log.Printf("Rapid rebalance attempt %s", hiWhiteColor(result.successfulAttempts+1))
+		if accelerator < 1 {
+			break
+		}
+		log.Printf("Rapid rebalance attempt %s, amount: %s\n", hiWhiteColor(result.successfulAttempts+1), hiWhiteColor(amtLocal))
 
 		cTo, err := r.getChanInfo(ctx, to)
 
@@ -328,23 +332,23 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64,
 			delete(r.channelPairs, k)
 		}
 
-		err = r.getChannelCandidates(params.FromPerc, params.ToPerc, amt)
+		err = r.getChannelCandidates(params.FromPerc, params.ToPerc, amtLocal)
 
 		if err != nil {
 			logErrorF("Error selecting channel candidates: %s", err)
 			return result, err
 		}
 
-		from, to, amt, err = r.pickChannelPair(amt, params.MinAmount, params.RelAmountFrom, params.RelAmountTo)
+		_, _, amtLocal, err = r.pickChannelPair(amtLocal, params.MinAmount, params.RelAmountFrom, params.RelAmountTo)
 
 		if err != nil {
 			log.Printf(errColor("Error during picking channel: %s"), err)
 			return result, err
 		}
 
-		log.Printf("rapid fire starting with amount %s", hiWhiteColor(amt))
+		log.Printf("rapid fire starting with amount %s", hiWhiteColor(amtLocal))
 
-		route, err = r.rebuildRoute(ctx, route, amt)
+		routeLocal, err = r.rebuildRoute(ctx, route, amtLocal)
 
 		if err != nil {
 			log.Printf(errColor("Error building route: %s"), err)
@@ -355,7 +359,7 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64,
 
 		defer attemptCancel()
 
-		err = r.pay(attemptCtx, amt, params.MinAmount, route, 0)
+		err = r.pay(attemptCtx, amtLocal, params.MinAmount, routeLocal, 0)
 
 		attemptCancel()
 
@@ -366,7 +370,7 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64,
 
 		if err != nil {
 			log.Printf("Rebalance failed with %s", err)
-			break
+			hittingTheWall = true
 		} else {
 			result.successfulAttempts++
 			result.successfulAmt += amt

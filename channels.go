@@ -92,7 +92,11 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 			}
 		}
 	}
-	return nil
+	if len(r.channelPairs) > 0 {
+		return nil
+	} else {
+		return fmt.Errorf("no channelpairs available for rebalance")
+	}
 }
 
 func min(args ...int64) (result int64) {
