@@ -205,7 +205,7 @@ func tryRebalance(ctx context.Context, r *regolancer, attempt *int) (err error,
 		if err == nil {
 
 			if params.AllowRapidRebalance {
-				rebalanceResult, _ := tryRapidRebalance(ctx, r, from, to, route, amt, feeMsat)
+				rebalanceResult, _ := tryRapidRebalance(ctx, r, from, to, route, amt, route.TotalFeesMsat)
 
 				if rebalanceResult.successfulAttempts > 0 {
 					log.Printf("%s rapid rebalances were successful, total amount: %s (fee: %s sat | %s ppm)\n",
@@ -370,7 +370,7 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64,
 		} else {
 			result.successfulAttempts++
 			result.successfulAmt += amt
-			result.paidFeeMsat += route.GetTotalFeesMsat()
+			result.paidFeeMsat += route.TotalFeesMsat
 		}
 	}
 	return result, nil
