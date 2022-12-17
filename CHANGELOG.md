@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0]
+### Added
+- Rapid rebalance is now accelerated, it tries to double the amount until it
+  fails, then the amount is halved until it becomes lower than the initial one
+- Goreleaser and Docker configs
+- If any rapid rebalances succeeded, the total amount and fees are displayed at
+  the end
+- Stat file (CSV) is now also flock'ed to prevent accidental corruption if
+  multiple instances try to update it
+### Fixed
+- Fees in route print and success message are now calculated from the target
+  balance (without fees) so for example 50 sat fee and 1 000 000 sat amount
+  would be shown as 50ppm, before it was 49ppm.
 ## [1.9.2]
 ### Added
 - Exit codes for failed rebalances (2 for global timeout and 1 for all
