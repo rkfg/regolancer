@@ -373,7 +373,7 @@ func tryRapidRebalance(ctx context.Context, r *regolancer, from, to uint64,
 			hittingTheWall = true
 		} else {
 			result.successfulAttempts++
-			result.successfulAmt += amt
+			result.successfulAmt += amtLocal
 			result.paidFeeMsat += route.TotalFeesMsat
 		}
 	}
