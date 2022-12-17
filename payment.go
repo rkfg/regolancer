@@ -129,7 +129,16 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 		log.Printf("Success! Paid %s in fees, %s ppm",
 			formatFee(result.Route.TotalFeesMsat), formatFeePPM(result.Route.TotalAmtMsat, result.Route.TotalFeesMsat))
 		if r.statFilename != "" {
-			_, err := os.Stat(r.statFilename)
+
+			l := lock()
+			err := l.Lock()
+			defer l.Unlock()
+
+			if err != nil {
+				return fmt.Errorf("error taking exclusive lock on file %s: %s", r.statFilename, err)
+			}
+
+			_, err = os.Stat(r.statFilename)
 			f, ferr := os.OpenFile(r.statFilename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 			if ferr != nil {
 				logErrorF("Error saving rebalance stats to %s: %s", r.statFilename, ferr)
