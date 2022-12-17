@@ -34,7 +34,7 @@ func (r *regolancer) loadNodeCache(filename string, exp int, doLock bool) error 
 		defer l.Unlock()
 
 		if err != nil {
-			return fmt.Errorf("error take shared lock on file %s: %s", filename, err)
+			return fmt.Errorf("error taking shared lock on file %s: %s", filename, err)
 		}
 	}
 	f, err := os.Open(filename)
@@ -69,7 +69,7 @@ func (r *regolancer) saveNodeCache(filename string, exp int) error {
 	defer l.Unlock()
 
 	if err != nil {
-		return fmt.Errorf("error take exclusive lock on file %s: %s", filename, err)
+		return fmt.Errorf("error taking exclusive lock on file %s: %s", filename, err)
 	}
 
 	old := regolancer{nodeCache: map[string]cachedNodeInfo{}}

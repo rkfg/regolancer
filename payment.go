@@ -135,7 +135,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 			defer l.Unlock()
 
 			if err != nil {
-				return fmt.Errorf("error take exclusive lock on file %s: %s", r.statFilename, err)
+				return fmt.Errorf("error taking exclusive lock on file %s: %s", r.statFilename, err)
 			}
 
 			_, err = os.Stat(r.statFilename)
