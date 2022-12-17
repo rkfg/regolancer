@@ -1,0 +1,126 @@
+before: 
+  hooks:
+    - go mod tidy
+    - go mod verify
+    - go mod download
+
+builds:
+  - goos:
+      - linux
+      - windows
+      - darwin
+      - freebsd
+
+    goarch:
+      - amd64
+      - arm
+      - arm64
+
+    goarm:
+      - 6
+
+    env:
+      - CGO_ENABLED=0
+
+    binary: regolancer
+
+checksum:
+  name_template: '{{ tolower .ProjectName }}_{{.Version}}_checksums.txt'
+
+snapshot:
+  name_template: SNAPSHOT-{{ .Commit }}
+
+archives:
+  - name_template: "{{ tolower .ProjectName }}_{{.Version}}_{{.Os}}-{{.Arch}}"
+    replacements:
+      darwin: macOS
+      linux: Linux
+      windows: Windows
+      freebsd: FreeBSD
+
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - config.toml.sample
+      - config.json.sample
+
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+changelog:
+  # Set this to true if you don't want any changelog at all.
+  # Warning: this will also ignore any changelog files passed via `--release-notes`,
+  # and will render an empty changelog.
+  # This may result in an empty release notes on GitHub/GitLab/Gitea.
+  skip: false
+ 
+# dockers:
+#   # https://goreleaser.com/customization/docker/
+#   - use: buildx
+#     goos: linux
+#     goarch: amd64
+#     image_templates:
+#       - "ziggie1984/{{ .ProjectName }}:{{ .Version }}-amd64"
+#       - "ziggie1984/{{ .ProjectName }}:latest-amd64"
+#     build_flag_templates:
+#       - "--platform=linux/amd64"
+#       - "--label=org.opencontainers.image.created={{.Date}}"
+#       - "--label=org.opencontainers.image.title={{.ProjectName}}"
+#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+#       - "--label=org.opencontainers.image.version={{.Version}}"
+#   - use: buildx
+#     goos: linux
+#     goarch: arm64
+#     image_templates:
+#       - "ziggie1984/{{ .ProjectName }}:{{ .Version }}-arm64v8"
+#       - "ziggie1984/{{ .ProjectName }}:latest-arm64v8"
+#     build_flag_templates:
+#       - "--platform=linux/arm64/v8"
+#       - "--label=org.opencontainers.image.created={{.Date}}"
+#       - "--label=org.opencontainers.image.title={{.ProjectName}}"
+#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+#       - "--label=org.opencontainers.image.version={{.Version}}"
+#   - use: buildx
+#     goos: linux
+#     goarch: arm
+#     goarm: 6
+#     image_templates:
+#       - "ziggie1984/{{ .ProjectName }}:{{ .Version }}-armv6"
+#       - "ziggie1984/{{ .ProjectName }}:latest-armv6"
+#     build_flag_templates:
+#       - "--platform=linux/arm/v6"
+#       - "--label=org.opencontainers.image.created={{.Date}}"
+#       - "--label=org.opencontainers.image.title={{.ProjectName}}"
+#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+#       - "--label=org.opencontainers.image.version={{.Version}}"
+#   - use: buildx
+#     goos: linux
+#     goarch: arm
+#     goarm: 7
+#     image_templates:
+#       - "ziggie1984/{{ .ProjectName }}:{{ .Version }}-armv7"
+#       - "ziggie1984/{{ .ProjectName }}:latest-armv7"
+#     build_flag_templates:
+#       - "--platform=linux/arm/v7"
+#       - "--label=org.opencontainers.image.created={{.Date}}"
+#       - "--label=org.opencontainers.image.title={{.ProjectName}}"
+#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+#       - "--label=org.opencontainers.image.version={{.Version}}"
+
+# docker_manifests:
+#   # https://goreleaser.com/customization/docker_manifest/
+#   - name_template: ziggie1984/{{ .ProjectName }}:{{ .Version }}
+#     image_templates:
+#       - ziggie1984/{{ .ProjectName }}:{{ .Version }}-amd64
+#       - ziggie1984/{{ .ProjectName }}:{{ .Version }}-arm64v8
+#       - ziggie1984/{{ .ProjectName }}:{{ .Version }}-armv6
+#       - ziggie1984/{{ .ProjectName }}:{{ .Version }}-armv7
+#   - name_template: ziggie1984/{{ .ProjectName }}:latest
+#     image_templates:
+#       - ziggie1984/{{ .ProjectName }}:latest-amd64
+#       - ziggie1984/{{ .ProjectName }}:latest-arm64v8
+#       - ziggie1984/{{ .ProjectName }}:latest-armv6
+#       - ziggie1984/{{ .ProjectName }}:latest-armv7
