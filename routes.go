@@ -305,3 +305,18 @@ func (r *regolancer) makeNodeList(nodes []string) error {
 	}
 	return nil
 }
+
+func getSource(route *lnrpc.Route) uint64 {
+	if len(route.Hops) > 0 {
+		return route.Hops[0].ChanId
+	}
+	return 0
+}
+
+func getTarget(route *lnrpc.Route) uint64 {
+	if len(route.Hops) > 0 {
+		return route.Hops[len(route.Hops)-1].ChanId
+	}
+	return 0
+
+}
