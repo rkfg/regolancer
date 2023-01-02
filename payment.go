@@ -38,10 +38,16 @@ func (r *regolancer) invalidateInvoice(amount int64) {
 	delete(r.invoiceCache, amount)
 }
 
-func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
+func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64, maxFeeMsat int64,
 	route *lnrpc.Route, probeSteps int) error {
 	fmt.Println()
 	defer fmt.Println()
+
+	if route.TotalFeesMsat > maxFeeMsat {
+		log.Printf("fee on the route exceeds our limits: %s ppm (max fee %s ppm)", formatFeePPM(amount*1000, route.TotalFeesMsat), formatFeePPM(amount*1000, maxFeeMsat))
+		return fmt.Errorf("fee-limit exceeded")
+	}
+
 	invoice, err := r.createInvoice(ctx, amount)
 	if err != nil {
 		log.Printf("Error creating invoice: %s", err)
@@ -64,6 +70,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 			Route:       route,
 		})
 	if err != nil {
+		logErrorF("error sending payment %s", err)
 		return err
 	}
 	if result.Status == lnrpc.HTLCAttempt_FAILED {
@@ -79,6 +86,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 			return fmt.Errorf("error: %s @ %d", result.Failure.Code.String(),
 				result.Failure.FailureSourceIndex)
 		}
+
 		prevHop := route.Hops[result.Failure.FailureSourceIndex-1]
 		failedHop := route.Hops[result.Failure.FailureSourceIndex]
 		nodeCtx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(params.TimeoutInfo))
@@ -98,6 +106,20 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64,
 			node2name = node2.Node.Alias
 		}
 		log.Printf("%s %s ⇒ %s", faintWhiteColor(result.Failure.Code.String()), cyanColor(node1name), cyanColor(node2name))
+
+		if result.Failure.Code == lnrpc.Failure_FEE_INSUFFICIENT || result.Failure.Code == lnrpc.Failure_INCORRECT_CLTV_EXPIRY {
+			failedHop := route.Hops[result.Failure.FailureSourceIndex-1]
+			route, err = r.rebuildRoute(ctx, route, amount)
+			updatedHop := route.Hops[result.Failure.FailureSourceIndex-1]
+			if err == nil {
+				// compare hops to make sure we do not loop endlessly
+				if !compareHops(failedHop, updatedHop) {
+					log.Printf("received channelupdate after failure, trying again with amt %s and fee %s ppm",
+						hiWhiteColor(amount), formatFeePPM(amount*1000, route.TotalFeesMsat))
+					return r.pay(ctx, amount, minAmount, maxFeeMsat, route, probeSteps)
+				}
+			}
+		}
 		if result.Failure.Code == lnrpc.Failure_TEMPORARY_CHANNEL_FAILURE {
 			r.addFailedChan(node1.Node.PubKey, node2.Node.PubKey, prevHop.
 				AmtToForwardMsat)
