@@ -108,6 +108,13 @@ func (r *regolancer) tryRapidRebalance(ctx context.Context, route *lnrpc.Route) 
 	for {
 		if hittingTheWall {
 			accelerator >>= 1
+			// In case we enounter that we are already constrained
+			// by the liquidity on the channels we are waiting for
+			// the accelerator to go below this amount to save
+			// already failed rebalances
+			if amtLocal < accelerator*amt && amtLocal > 0 {
+				continue
+			}
 		} else {
 			accelerator <<= 1
 		}
@@ -193,7 +200,7 @@ func (r *regolancer) tryRapidRebalance(ctx context.Context, route *lnrpc.Route) 
 			return result, err
 		}
 
-		log.Printf("rapid fire starting with amount %s", hiWhiteColor(amtLocal))
+		log.Printf("Rapid fire starting with actual amount: %s (could be lower than the attempted amount in case there is less liquidity available on the channel)", hiWhiteColor(amtLocal))
 
 		routeLocal, err = r.rebuildRoute(ctx, route, amtLocal)
 
