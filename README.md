@@ -88,7 +88,8 @@ Common:
   -e, --exclude-channel        (DEPRECATED) don't use this channel at all (can be specified multiple times)
   -d, --exclude-node           (DEPRECATED) don't use this node for routing (can be specified multiple times)
       --exclude                don't use this node or your channel for routing (can be specified multiple times)
-      --exclude-channel-age    don't use channels opened less than this number of blocks ago      --to                     try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)
+      --exclude-channel-age    don't use channels opened less than this number of blocks ago
+      --to                     try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)
       --from                   try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)
       --fail-tolerance         a payment that differs from the prior attempt by this ppm will be cancelled
       --allow-unbalance-from   (DEPRECATED) let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50
