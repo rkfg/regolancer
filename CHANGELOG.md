@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.11.0]
+### Added
+- Exclude too young channels by their age in blocks: give liquidity a chance to
+  move to the other side by itself. You can now set the minimum channel age to
+  be considered for rebalance.
+### Changed
+- Rapid rebalance now skips some steps if the channel is already constrained by
+  liquidity
+### Fixed
+- Sudden fee changes are now properly handled: we retry rebalance and also see
+  if the new fee is still within the limit
 ## [1.10.2]
 ### Fixed
 - Rapid rebalance summary now shows the correct total fee
