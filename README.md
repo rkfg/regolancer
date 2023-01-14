@@ -24,7 +24,7 @@ rebalance-lnd](https://github.com/accumulator/rebalance-lnd).
 - timeouts can be customized
 - JSON/TOML config file to set some defaults you prefer
 - optional route probing using binary search to rebalance a smaller amount
-- optional rapid rebalancing using the same route for further rebalances 
+- optional rapid rebalancing using the same route for further rebalances
   unitl route is depleted in case a rebalance succeeds
 - data caching to speed up alias resolution, quickly skip failing channel pairs
   etc.
@@ -62,8 +62,8 @@ in `~/go/bin/linux_arm`.
 
 ```
 Config:
-  -f, --config                 config file path          
-                                                                                           
+  -f, --config                 config file path
+
 Node Connection:
   -c, --connect                connect to lnd using host:port
   -t, --tlscert                path to tls.cert to connect
@@ -88,7 +88,7 @@ Common:
   -e, --exclude-channel        (DEPRECATED) don't use this channel at all (can be specified multiple times)
   -d, --exclude-node           (DEPRECATED) don't use this node for routing (can be specified multiple times)
       --exclude                don't use this node or your channel for routing (can be specified multiple times)
-      --to                     try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)
+      --exclude-channel-age    don't use channels opened less than this number of blocks ago      --to                     try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)
       --from                   try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)
       --fail-tolerance         a payment that differs from the prior attempt by this ppm will be cancelled
       --allow-unbalance-from   (DEPRECATED) let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50
@@ -198,9 +198,8 @@ continues.
 # Docker Setup
 
 In general its recommanded to run regolancer in a normal environment because it is
-so easy to install as mentioned above. However if you want to run it in a docker 
-we also provide the Dockerfile and a docker-compose.yml so that you can easily 
-get started. 
+so easy to install as mentioned above. However if you want to run it in a docker
+we also provide the Dockerfile so that you can easily get started.
 
 Build the container or pull it:
 
@@ -223,7 +222,6 @@ Optionally you can create an alias in your shell's environment file like so:
 alias regolancer="docker run --rm --network=umbrel_main_network -it -v /home/umbrel/umbrel/app-data/lightning/data/lnd:/root/.lnd regolancer --connect 10.21.21.9:10009"
 
 For older versions of Umbrel please use `/home/umbrel/umbrel/lnd` instead of `/home/umbrel/umbrel/app-data/lightning/data/lnd`
-
 
 # What's wrong with the other rebalancers
 
@@ -288,6 +286,7 @@ during route construction. You can also disable them (it only happens on your
 end so you'll be able to receive liquidity but not send it) but it hurts your
 score on various sites so better not to do it. Increase fees or lower max_htlc and
 you'll be good. You can set multiple brackets with multiple limits like:
+
 - 20% local balance => set max_htlc to 0.1 of channel capacity (so it can
   process ≈2 payments max or more smaller payments)
 - 10% local balance => set max_htlc to 0.01 of channel capacity (small payments
@@ -306,6 +305,7 @@ accept contributions and suggestions though! For now I implemented almost
 everything I needed, maybe except a couple of timeouts being configurable. But I
 don't see much need for that as of now. The main goals and motivation for this
 project were:
+
 - make it reliable and robust so I don't have to babysit it (stop/restart if it
   hangs, crashes or gives up early)
 - make it fast and lightweight, don't stress `lnd` too much as it all should run

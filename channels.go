@@ -64,6 +64,10 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 
 	for _, c := range r.channels {
 
+		if params.ExcludeChannelAge != 0 && uint64(r.blockHeight)-getChannelAge(c.ChanId) < params.ExcludeChannelAge {
+			continue
+		}
+
 		if _, ok := r.excludeBoth[c.ChanId]; ok {
 			continue
 		}
@@ -198,6 +202,12 @@ func parseScid(chanId string) int64 {
 
 	return int64(scId.ToUint64())
 
+}
+
+func getChannelAge(chanId uint64) uint64 {
+	shortChanId := lnwire.NewShortChanIDFromInt(chanId)
+
+	return uint64(shortChanId.BlockHeight)
 }
 
 func (r *regolancer) getChannelForPeer(ctx context.Context, node []byte) []*lnrpc.Channel {
