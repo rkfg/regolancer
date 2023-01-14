@@ -28,7 +28,7 @@ func (r *regolancer) tryRebalance(ctx context.Context, attempt *int) (err error,
 	}
 	routeCtx, routeCtxCancel := context.WithTimeout(attemptCtx, time.Second*time.Duration(params.TimeoutRoute))
 	defer routeCtxCancel()
-	routes, feeMsat, err := r.getRoutes(routeCtx, from, to, amt*1000)
+	routes, maxFeeMsat, err := r.getRoutes(routeCtx, from, to, amt*1000)
 	if err != nil {
 		if routeCtx.Err() == context.DeadlineExceeded {
 			log.Print(errColor("Timed out looking for a route"))
@@ -40,9 +40,9 @@ func (r *regolancer) tryRebalance(ctx context.Context, attempt *int) (err error,
 	routeCtxCancel()
 	for _, route := range routes {
 		log.Printf("Attempt %s, amount: %s (max fee: %s sat | %s ppm )",
-			hiWhiteColorF("#%d", *attempt), hiWhiteColor(amt), formatFee(feeMsat), formatFeePPM(amt*1000, feeMsat))
+			hiWhiteColorF("#%d", *attempt), hiWhiteColor(amt), formatFee(maxFeeMsat), formatFeePPM(amt*1000, maxFeeMsat))
 		r.printRoute(attemptCtx, route)
-		err = r.pay(attemptCtx, amt, params.MinAmount, route, params.ProbeSteps)
+		err = r.pay(attemptCtx, amt, params.MinAmount, maxFeeMsat, route, params.ProbeSteps)
 		if err == nil {
 
 			if params.AllowRapidRebalance {
@@ -65,7 +65,7 @@ func (r *regolancer) tryRebalance(ctx context.Context, attempt *int) (err error,
 			if err != nil {
 				log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
 			} else {
-				err = r.pay(ctx, amt, 0, probedRoute, 0)
+				err = r.pay(ctx, amt, 0, maxFeeMsat, probedRoute, 0)
 				if err == nil {
 					return nil, false
 				} else {
@@ -74,6 +74,7 @@ func (r *regolancer) tryRebalance(ctx context.Context, attempt *int) (err error,
 				}
 			}
 		}
+
 		*attempt++
 	}
 	attemptCancel()
@@ -213,7 +214,15 @@ func (r *regolancer) tryRapidRebalance(ctx context.Context, route *lnrpc.Route) 
 
 		defer attemptCancel()
 
-		err = r.pay(attemptCtx, amtLocal, params.MinAmount, routeLocal, 0)
+		// make sure we account for fees when increasing the rebalance amount
+		maxFeeMsat, _, err := r.calcFeeMsat(ctx, from, to, amtLocal*1000)
+
+		if err != nil {
+			log.Printf(errColor("Error calculating fee: %s"), err)
+			return result, err
+		}
+
+		err = r.pay(attemptCtx, amtLocal, params.MinAmount, maxFeeMsat, routeLocal, 0)
 
 		attemptCancel()
 
