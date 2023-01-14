@@ -69,7 +69,6 @@ type configParams struct {
 }
 
 var params, cfgParams configParams
-var info *lnrpc.GetInfoResponse
 
 type failedRoute struct {
 	channelPair [2]*lnrpc.Channel
@@ -85,6 +84,7 @@ type regolancer struct {
 	lnClient      lnrpc.LightningClient
 	routerClient  routerrpc.RouterClient
 	myPK          string
+	blockHeight   uint32
 	channels      []*lnrpc.Channel
 	fromChannels  []*lnrpc.Channel
 	fromChannelId map[uint64]struct{}
@@ -318,11 +318,12 @@ func main() {
 	defer mainCtxCancel()
 	infoCtx, infoCtxCancel := context.WithTimeout(mainCtx, time.Second*time.Duration(params.TimeoutInfo))
 	defer infoCtxCancel()
-	info, err = r.lnClient.GetInfo(infoCtx, &lnrpc.GetInfoRequest{})
+	info, err := r.lnClient.GetInfo(infoCtx, &lnrpc.GetInfoRequest{})
 	if err != nil {
 		log.Fatal(err)
 	}
 	r.myPK = info.IdentityPubkey
+	r.blockHeight = info.BlockHeight
 	err = r.getChannels(infoCtx)
 	if err != nil {
 		log.Fatal("Error listing own channels: ", err)
