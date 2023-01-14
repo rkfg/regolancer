@@ -45,7 +45,7 @@ type configParams struct {
 	ExcludeChannels     []string `short:"e" long:"exclude-channel" description:"(DEPRECATED) don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
 	ExcludeNodes        []string `short:"d" long:"exclude-node" description:"(DEPRECATED) don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
 	Exclude             []string `long:"exclude" description:"don't use this node or your channel for routing (can be specified multiple times)" json:"exclude" toml:"exclude"`
-	ExcludeChannelAge   uint64   `long:"exclude-channel-age" description:"channels with a lower channel age (in blocks) relative to the current blockheight are excluded when rebalancing" json:"exclude_channel_age" toml:"exclude_channel_age"`
+	ExcludeChannelAge   uint64   `long:"exclude-channel-age" description:"don't use channels opened less than this number of blocks ago" json:"exclude_channel_age" toml:"exclude_channel_age"`
 	To                  []string `long:"to" description:"try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
 	From                []string `long:"from" description:"try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
 	FailTolerance       int64    `long:"fail-tolerance" description:"a payment that differs from the prior attempt by this ppm will be cancelled" json:"fail_tolerance" toml:"fail_tolerance"`

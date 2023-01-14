@@ -80,7 +80,7 @@ func (r *regolancer) info(ctx context.Context) error {
 	}
 	fmt.Println()
 	if params.ExcludeChannelAge != 0 {
-		fmt.Printf("ChannelAge needs to be >= than: %s blocks\n", hiWhiteColor(params.ExcludeChannelAge))
+		fmt.Printf("Channel age needs to be >= %s blocks\n", hiWhiteColor(params.ExcludeChannelAge))
 	}
 	fmt.Printf("Fail tolerance: %s ppm\n", formatAmt(int64(params.FailTolerance)))
 	printBooleanOption("Rapid rebalance", params.AllowRapidRebalance)
