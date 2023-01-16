@@ -125,7 +125,7 @@ func (r *regolancer) pickChannelPair(amount, minAmount int64,
 			r.channelPairs[k] = v.channelPair
 			delete(r.failureCache, k)
 		}
-
+		r.mcCache = map[string]int64{}
 		r.routeFound = false
 
 	}
