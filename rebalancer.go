@@ -95,10 +95,12 @@ func (r *regolancer) tryRapidRebalance(ctx context.Context, route *lnrpc.Route) 
 		// Need to save the route and amount locally because we are changing it via the accelerator
 		// In case we reuse the route it will lead to a situation where no route is found
 		// the route variable will be overwritten and we are loosing the information
-		routeLocal     *lnrpc.Route
-		amtLocal       int64
-		accelerator    int64 = 1
-		hittingTheWall bool
+		routeLocal           *lnrpc.Route
+		amtLocal             int64 = amt
+		accelerator          int64 = 1
+		hittingTheWall       bool
+		capReached           bool
+		maxAmountOnRouteMsat uint64
 	)
 
 	result.successfulAttempts = 0
@@ -106,24 +108,39 @@ func (r *regolancer) tryRapidRebalance(ctx context.Context, route *lnrpc.Route) 
 	result.successfulAmt = amt
 	result.paidFeeMsat = route.TotalFeesMsat
 
+	maxAmountOnRouteMsat, err = r.maxAmountOnRoute(ctx, route)
+	if err != nil {
+		return result, err
+	}
+
 	for {
 		if hittingTheWall {
 			accelerator >>= 1
-			// In case we enounter that we are already constrained
+			// In case we encounter that we are already constrained
 			// by the liquidity on the channels we are waiting for
 			// the accelerator to go below this amount to save
 			// already failed rebalances
 			if amtLocal < accelerator*amt && amtLocal > 0 {
 				continue
 			}
-		} else {
+		} else if !capReached {
+			// we only increase the amount if the max Amount on the
+			// route is still not reached
 			accelerator <<= 1
 		}
-		amtLocal = accelerator * amt
+
+		if uint64(accelerator*amt) < maxAmountOnRouteMsat/1000 {
+			amtLocal = accelerator * amt
+		} else if !capReached {
+			capReached = true
+			log.Printf("Max amount on route reached capping amount at %s sats "+
+				"| max amount on route (max htlc size) %s sats\n", infoColor(amtLocal), infoColor(maxAmountOnRouteMsat/1000))
+		}
 
 		if accelerator < 1 {
 			break
 		}
+
 		log.Printf("Rapid rebalance attempt %s, amount: %s\n", hiWhiteColor(result.successfulAttempts+1), hiWhiteColor(amtLocal))
 
 		cTo, err := r.getChanInfo(ctx, to)
