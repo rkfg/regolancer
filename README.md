@@ -204,7 +204,7 @@ we also provide the Dockerfile so that you can easily get started.
 
 Build the container or pull it:
 
-`docker build -t regolancer .` or `docker pull ziggie1984/regolancer
+`docker build -t regolancer .` or `docker pull ziggie1984/regolancer`
 
 Now you can use regolancer with your lnd instance:
 
