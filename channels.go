@@ -115,6 +115,13 @@ func min(args ...int64) (result int64) {
 
 func (r *regolancer) pickChannelPair(amount, minAmount int64,
 	relFromAmount, relToAmount float64) (from uint64, to uint64, maxAmount int64, err error) {
+
+	// Channel Reserve we have to account for when determine the amount to
+	// rebalance. The normal reserve is 1% of the channel capacity in the current
+	// lightning protocol, though we also have to take the commitment fee into account
+	// when building up the commitment tx so we take 2% here to not run in those edge cases.
+	const channelReserve = 0.02
+
 	if len(r.channelPairs) == 0 {
 		if !r.routeFound || len(r.failureCache) == 0 {
 			return 0, 0, 0, errors.New("no routes")
@@ -142,11 +149,11 @@ func (r *regolancer) pickChannelPair(amount, minAmount int64,
 	}
 	fromChan = pair[0]
 	toChan = pair[1]
-	maxFrom := fromChan.LocalBalance
+	maxFrom := fromChan.LocalBalance - int64(float64(fromChan.Capacity)*channelReserve)
 	if relFromAmount > 0 {
 		maxFrom = min(maxFrom, int64(float64(fromChan.Capacity)*relFromAmount)-fromChan.RemoteBalance)
 	}
-	maxTo := toChan.RemoteBalance
+	maxTo := toChan.RemoteBalance - int64(float64(fromChan.Capacity)*channelReserve)
 	if relToAmount > 0 {
 		maxTo = min(maxTo, int64(float64(toChan.Capacity)*relToAmount)-toChan.LocalBalance)
 	}
@@ -155,7 +162,9 @@ func (r *regolancer) pickChannelPair(amount, minAmount int64,
 	} else {
 		maxAmount = min(maxFrom, maxTo, amount)
 	}
-	if maxAmount < minAmount {
+	// we need to also fail the route when maxAmount is zero
+	// this can happen when rapid-rebalancing.
+	if maxAmount < minAmount || maxAmount == 0 {
 		r.addFailedRoute(fromChan.ChanId, toChan.ChanId)
 		return r.pickChannelPair(amount, minAmount, relFromAmount, relToAmount)
 	}
