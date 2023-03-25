@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"fmt"
+	"math"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
 )
@@ -30,4 +32,30 @@ func (r *regolancer) validateRoute(route *lnrpc.Route) error {
 		prevHopPK = hopPK
 	}
 	return nil
+}
+
+func (r *regolancer) maxAmountOnRoute(ctx context.Context, route *lnrpc.Route) (uint64, error) {
+	var capAmountMsat uint64 = math.MaxInt64
+	for _, h := range route.Hops {
+		edge, err := r.getChanInfo(ctx, h.ChanId)
+		if err != nil {
+			return 0, err
+		}
+
+		policyTo := edge.Node1Policy
+		if h.PubKey != edge.Node2Pub {
+			policyTo = edge.Node2Policy
+		}
+
+		if policyTo.MaxHtlcMsat <= 0 {
+			continue
+		}
+
+		if capAmountMsat > policyTo.MaxHtlcMsat {
+			capAmountMsat = policyTo.MaxHtlcMsat
+		}
+	}
+
+	return capAmountMsat, nil
+
 }
