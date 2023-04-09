@@ -19,7 +19,10 @@ func (e ErrRetry) Error() string {
 	return fmt.Sprintf("retry payment with %d sats", e.amount)
 }
 
-var ErrProbeFailed = fmt.Errorf("probe failed")
+var (
+	ErrProbeFailed = fmt.Errorf("probe failed")
+	ErrFeeExceeded = fmt.Errorf("fee-limit exceeded")
+)
 
 func (r *regolancer) createInvoice(ctx context.Context, amount int64) (result *lnrpc.AddInvoiceResponse, err error) {
 	var ok bool
@@ -45,7 +48,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64, max
 
 	if route.TotalFeesMsat > maxFeeMsat {
 		log.Printf("fee on the route exceeds our limits: %s ppm (max fee %s ppm)", formatFeePPM(amount*1000, route.TotalFeesMsat), formatFeePPM(amount*1000, maxFeeMsat))
-		return fmt.Errorf("fee-limit exceeded")
+		return ErrFeeExceeded
 	}
 
 	invoice, err := r.createInvoice(ctx, amount)

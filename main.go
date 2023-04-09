@@ -256,6 +256,7 @@ func preflightChecks(params *configParams) error {
 	if params.TimeoutRoute == 0 {
 		params.TimeoutRoute = 30
 	}
+
 	return nil
 
 }
