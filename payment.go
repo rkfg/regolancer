@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"time"
+	"math/rand"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
@@ -51,6 +52,14 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64, max
 		return ErrFeeExceeded
 	}
 
+	// Probing before initial payment if --probe-steps is enabled
+	// If timeout error occurs create fake invoice to discard route
+	log.Printf("Probing route before initial full amount payment...")
+	_, probeErr := r.probeRoute(ctx, route, amount, amount, amount, 1)
+	if probeErr != nil || probeErr == context.DeadlineExceeded {
+	    logErrorF("Probe error: %s", probeErr)
+	}
+
 	invoice, err := r.createInvoice(ctx, amount)
 	if err != nil {
 		log.Printf("Error creating invoice: %s", err)
@@ -67,9 +76,24 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64, max
 		TotalAmtMsat: amount * 1000,
 	}
 
+	PayHash := make([]byte, 32)
+	if probeErr != nil || probeErr == context.DeadlineExceeded {
+	    log.Printf("Probing timed out. Excluding route by fake payment")
+	    fakeHash := make([]byte, 32)
+	    _, err := rand.Read(fakeHash)
+	    if err != nil {
+	        log.Printf("Error generating fake hash: %s", err)
+	        return err
+	    }
+	    PayHash = fakeHash
+	} else {
+	    log.Printf("Route probing successful")
+	    PayHash = invoice.RHash
+	}
+
 	result, err := r.routerClient.SendToRouteV2(ctx,
 		&routerrpc.SendToRouteRequest{
-			PaymentHash: invoice.RHash,
+			PaymentHash: PayHash,
 			Route:       route,
 		})
 	if err != nil {
@@ -129,7 +153,7 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64, max
 		}
 		if probeSteps > 0 && int(result.Failure.FailureSourceIndex) == len(route.Hops)-2 &&
 			result.Failure.Code == lnrpc.Failure_TEMPORARY_CHANNEL_FAILURE {
-			fmt.Println("Probing route...")
+			log.Printf("Probing route with less amount ...")
 			min := int64(0)
 			start := amount / 2
 			if minAmount > 0 && minAmount < amount {
