@@ -322,6 +322,9 @@ func getTarget(route *lnrpc.Route) uint64 {
 }
 
 func compareHops(hop1 *lnrpc.Hop, hop2 *lnrpc.Hop) bool {
+	if hop1 == nil || hop2 == nil {
+		return false
+	}
 	return hop1.ChanId == hop2.ChanId &&
 		hop1.FeeMsat == hop2.FeeMsat &&
 		hop1.Expiry == hop2.Expiry

@@ -109,15 +109,17 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64, max
 
 		if result.Failure.Code == lnrpc.Failure_FEE_INSUFFICIENT || result.Failure.Code == lnrpc.Failure_INCORRECT_CLTV_EXPIRY {
 			failedHop := route.Hops[result.Failure.FailureSourceIndex-1]
-			route, err = r.rebuildRoute(ctx, route, amount)
-			updatedHop := route.Hops[result.Failure.FailureSourceIndex-1]
+			updatedRoute, err := r.rebuildRoute(ctx, route, amount)
 			if err == nil {
+				updatedHop := updatedRoute.Hops[result.Failure.FailureSourceIndex-1]
 				// compare hops to make sure we do not loop endlessly
 				if !compareHops(failedHop, updatedHop) {
 					log.Printf("received channelupdate after failure, trying again with amt %s and fee %s ppm",
-						hiWhiteColor(amount), formatFeePPM(amount*1000, route.TotalFeesMsat))
-					return r.pay(ctx, amount, minAmount, maxFeeMsat, route, probeSteps)
+						hiWhiteColor(amount), formatFeePPM(amount*1000, updatedRoute.TotalFeesMsat))
+					return r.pay(ctx, amount, minAmount, maxFeeMsat, updatedRoute, probeSteps)
 				}
+			} else {
+				log.Printf("error rebuilding the route: %s", err)
 			}
 		}
 		if result.Failure.Code == lnrpc.Failure_TEMPORARY_CHANNEL_FAILURE {
