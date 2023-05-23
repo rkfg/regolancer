@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"log"
 	"time"
 
@@ -11,9 +12,15 @@ import (
 
 type rebalanceResult struct {
 	successfulAttempts int
+	failedAttempts     int
 	successfulAmt      int64
 	paidFeeMsat        int64
 }
+
+const (
+	increaseAmtRapidRebalance string = "increase"
+	decreaseAmtRapidRebalance string = "decrease"
+)
 
 func (r *regolancer) tryRebalance(ctx context.Context, attempt *int) (err error,
 	repeat bool) {
@@ -48,10 +55,11 @@ func (r *regolancer) tryRebalance(ctx context.Context, attempt *int) (err error,
 			if params.AllowRapidRebalance {
 				rebalanceResult, _ := r.tryRapidRebalance(ctx, route)
 
-				if rebalanceResult.successfulAttempts > 0 {
-					log.Printf("%s rapid rebalances were successful, total amount: %s (fee: %s sat | %s ppm)\n",
+				if rebalanceResult.successfulAttempts > 0 || rebalanceResult.failedAttempts > 0 {
+					log.Printf("%s rapid rebalances were successful, total amount: %s (fee: %s sat | %s ppm) - Failed Attempts: %s\n",
 						hiWhiteColor(rebalanceResult.successfulAttempts), hiWhiteColor(rebalanceResult.successfulAmt),
-						formatFee(rebalanceResult.paidFeeMsat), formatFeePPM(rebalanceResult.successfulAmt*1000, rebalanceResult.paidFeeMsat))
+						formatFee(rebalanceResult.paidFeeMsat), formatFeePPM(rebalanceResult.successfulAmt*1000, rebalanceResult.paidFeeMsat),
+						hiWhiteColor(rebalanceResult.failedAttempts))
 				}
 				log.Printf("Finished rapid rebalancing")
 			}
@@ -99,11 +107,15 @@ func (r *regolancer) tryRapidRebalance(ctx context.Context, route *lnrpc.Route) 
 		amtLocal             int64 = amt
 		accelerator          int64 = 1
 		hittingTheWall       bool
+		exitEarly            bool
 		capReached           bool
 		maxAmountOnRouteMsat uint64
+		minAmount            uint64
+		rebalanceStrategy    string = increaseAmtRapidRebalance
 	)
 
 	result.successfulAttempts = 0
+	result.failedAttempts = 0
 	// Include Initial Rebalance
 	result.successfulAmt = amt
 	result.paidFeeMsat = route.TotalFeesMsat
@@ -113,32 +125,64 @@ func (r *regolancer) tryRapidRebalance(ctx context.Context, route *lnrpc.Route) 
 		return result, err
 	}
 
+	if params.MinAmount > 0 {
+		minAmount = uint64(params.MinAmount)
+	} else {
+		minAmount = 10000
+	}
+
+Loop:
 	for {
-		if hittingTheWall {
-			accelerator >>= 1
-			// In case we encounter that we are already constrained
-			// by the liquidity on the channels we are waiting for
-			// the accelerator to go below this amount to save
-			// already failed rebalances
-			if amtLocal < accelerator*amt && amtLocal > 0 {
+		switch rebalanceStrategy {
+		case increaseAmtRapidRebalance:
+			if hittingTheWall {
+				accelerator >>= 1
+				// In case we encounter that we are already constrained
+				// by the liquidity on the channels we are waiting for
+				// the accelerator to go below this amount to save
+				// already failed rebalances
+				if amtLocal < accelerator*amt && amtLocal > int64(minAmount) {
+					continue
+				}
+			} else if !capReached {
+				// we only increase the amount if the max Amount on the
+				// route is still not reached
+				accelerator <<= 1
+			}
+
+			if uint64(accelerator*amt) < maxAmountOnRouteMsat/1000 {
+				amtLocal = accelerator * amt
+			} else if !capReached {
+				capReached = true
+				log.Printf("Max amount on route reached capping amount at %s sats "+
+					"| max amount on route (max htlc size) %s sats\n", infoColor(amtLocal), infoColor(maxAmountOnRouteMsat/1000))
+			}
+			// We reached the initial amount again.
+			// now we switch to the decreasing strategy.
+			// We half the amount on every step we go down.
+			if accelerator < 1 {
+				accelerator = 2
+				rebalanceStrategy = decreaseAmtRapidRebalance
+				amtLocal = amt / accelerator
+				if amtLocal < int64(minAmount) {
+					break Loop
+				}
+			}
+
+		case decreaseAmtRapidRebalance:
+			accelerator <<= 1
+			if amtLocal < amt/accelerator {
 				continue
 			}
-		} else if !capReached {
-			// we only increase the amount if the max Amount on the
-			// route is still not reached
-			accelerator <<= 1
+
+			amtLocal = amt / accelerator
+			if amtLocal < int64(minAmount) {
+				break Loop
+			}
 		}
 
-		if uint64(accelerator*amt) < maxAmountOnRouteMsat/1000 {
-			amtLocal = accelerator * amt
-		} else if !capReached {
-			capReached = true
-			log.Printf("Max amount on route reached capping amount at %s sats "+
-				"| max amount on route (max htlc size) %s sats\n", infoColor(amtLocal), infoColor(maxAmountOnRouteMsat/1000))
-		}
-
-		if accelerator < 1 {
-			break
+		if exitEarly {
+			break Loop
 		}
 
 		log.Printf("Rapid rebalance attempt %s, amount: %s\n", hiWhiteColor(result.successfulAttempts+1), hiWhiteColor(amtLocal))
@@ -211,14 +255,29 @@ func (r *regolancer) tryRapidRebalance(ctx context.Context, route *lnrpc.Route) 
 			return result, err
 		}
 
+		amtLocalTemp := amtLocal
 		_, _, amtLocal, err = r.pickChannelPair(amtLocal, params.MinAmount, params.RelAmountFrom, params.RelAmountTo)
 
 		if err != nil {
 			log.Printf(errColor("Error during picking channel: %s"), err)
-			return result, err
+			hittingTheWall = true
+			// We are not returning an error here because
+			// in we still could rebalance an amount in the
+			// decreasing strategy.
+			// return result, err
+			continue
 		}
 
-		log.Printf("Rapid fire starting with actual amount: %s (could be lower than the attempted amount in case there is less liquidity available on the channel)", hiWhiteColor(amtLocal))
+		if amtLocalTemp > amtLocal {
+			log.Printf("Rapid fire starting with actual amount: %s (could be lower than the attempted amount in case there is less liquidity available on the channel)", hiWhiteColor(amtLocal))
+			// We are already using maximum available liquidity so we can begin decreasing amounts again.
+			hittingTheWall = true
+			// This is needed so we do not test further amounts
+			// when in the decreasing strategy.
+			if rebalanceStrategy == decreaseAmtRapidRebalance {
+				exitEarly = true
+			}
+		}
 
 		routeLocal, err = r.rebuildRoute(ctx, route, amtLocal)
 
@@ -241,6 +300,12 @@ func (r *regolancer) tryRapidRebalance(ctx context.Context, route *lnrpc.Route) 
 
 		err = r.pay(attemptCtx, amtLocal, params.MinAmount, maxFeeMsat, routeLocal, 0)
 
+		// In case we are already decreasing the amount we can exit early because
+		// for even smaller amounts the fee will be higher (reason is the basefee).
+		if rebalanceStrategy == decreaseAmtRapidRebalance && errors.Is(err, ErrFeeExceeded) {
+			exitEarly = true
+		}
+
 		attemptCancel()
 
 		if attemptCtx.Err() == context.DeadlineExceeded {
@@ -250,6 +315,8 @@ func (r *regolancer) tryRapidRebalance(ctx context.Context, route *lnrpc.Route) 
 
 		if err != nil {
 			log.Printf("Rebalance failed with %s", err)
+			log.Println()
+			result.failedAttempts++
 			hittingTheWall = true
 		} else {
 			result.successfulAttempts++
