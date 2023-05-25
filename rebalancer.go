@@ -73,7 +73,7 @@ func (r *regolancer) tryRebalance(ctx context.Context, attempt *int) (err error,
 			if err != nil {
 				log.Printf("Error rebuilding the route for probed payment: %s", errColor(err))
 			} else {
-				err = r.pay(ctx, amt, 0, maxFeeMsat, probedRoute, 0)
+				err = r.pay(attemptCtx, amt, 0, maxFeeMsat, probedRoute, 0)
 				if err == nil {
 					return nil, false
 				} else {
