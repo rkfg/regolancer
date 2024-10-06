@@ -53,6 +53,7 @@ type configParams struct {
 	AllowUnbalanceTo    bool     `long:"allow-unbalance-to" description:"(DEPRECATED) let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
 	EconRatio           float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio" toml:"econ_ratio"`
 	EconRatioMaxPPM     int64    `long:"econ-ratio-max-ppm" description:"limits the max fee ppm for a rebalance when using econ ratio" json:"econ_ratio_max_ppm" toml:"econ_ratio_max_ppm"`
+	ChannelMarginPPM    int64    `long:"channel-margin-ppm" description:"if the lost profit in ppm is below this value, we want a higher rebalancing margin up to this value" json:"channel_margin_ppm" toml:"channel_margin_ppm"`
 	FeeLimitPPM         int64    `short:"F" long:"fee-limit-ppm" description:"don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)" json:"fee_limit_ppm" toml:"fee_limit_ppm"`
 	LostProfit          bool     `short:"l" long:"lost-profit" description:"also consider the source channel fee when looking for profitable routes so that route_fee < target_fee * econ_ratio - source_fee" json:"lost_profit" toml:"lost_profit"`
 	NodeCacheFilename   string   `rego-grouping:"Node Cache" long:"node-cache-filename" description:"save and load other nodes information to this file, improves cold start performance"  json:"node_cache_filename" toml:"node_cache_filename"`
@@ -194,6 +195,9 @@ func preflightChecks(params *configParams) error {
 	}
 	if params.EconRatio == 0 && params.FeeLimitPPM == 0 {
 		params.EconRatio = 1
+	}
+	if !params.LostProfit {
+		params.ChannelMarginPPM = 0
 	}
 	if params.EconRatioMaxPPM != 0 && params.FeeLimitPPM != 0 {
 		return fmt.Errorf("use either econ-ratio-max-ppm or fee-limit-ppm but not both")
