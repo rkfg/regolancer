@@ -120,6 +120,8 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 	if err != nil {
 		return nil, 0, err
 	}
+
+	start := time.Now()
 	routes, err := r.lnClient.QueryRoutes(routeCtx, &lnrpc.QueryRoutesRequest{
 		PubKey:            r.myPK,
 		OutgoingChanId:    from,
@@ -130,6 +132,9 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 		IgnoredNodes:      r.excludeNodes,
 		IgnoredPairs:      r.failedPairs,
 	})
+	dur := time.Since(start).Seconds()
+	r.timeQueryRoute += dur
+
 	if err != nil {
 		return nil, 0, err
 	}

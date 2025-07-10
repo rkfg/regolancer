@@ -65,6 +65,7 @@ type configParams struct {
 	TimeoutInfo         int      `long:"timeout-info" description:"max general info query time (local channels, node id etc.) in seconds" json:"timeout_info" toml:"timeout_info"`
 	TimeoutRoute        int      `long:"timeout-route" description:"max channel selection and route query time in seconds" json:"timeout_route" toml:"timeout_route"`
 	StatFilename        string   `rego-grouping:"Others" short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
+	TimestatFilename    string   `long:"timestat" description:"save timing statistics (QueryRoute, SendToRoute) to the specified CSV file" json:"timestat" toml:"timestat"`
 	Version             bool     `short:"v" long:"version" description:"show program version and exit"`
 	Info                bool     `long:"info" description:"show rebalance information"`
 	Help                bool     `short:"h" long:"help" description:"Show this help message"`
@@ -83,28 +84,31 @@ type cachedNodeInfo struct {
 }
 
 type regolancer struct {
-	lnClient      lnrpc.LightningClient
-	routerClient  routerrpc.RouterClient
-	myPK          string
-	blockHeight   uint32
-	channels      []*lnrpc.Channel
-	fromChannels  []*lnrpc.Channel
-	fromChannelId map[uint64]struct{}
-	toChannels    []*lnrpc.Channel
-	toChannelId   map[uint64]struct{}
-	channelPairs  map[string][2]*lnrpc.Channel
-	nodeCache     map[string]cachedNodeInfo
-	chanCache     map[uint64]*lnrpc.ChannelEdge
-	failureCache  map[string]failedRoute
-	excludeTo     map[uint64]struct{}
-	excludeFrom   map[uint64]struct{}
-	excludeBoth   map[uint64]struct{}
-	excludeNodes  [][]byte
-	statFilename  string
-	routeFound    bool
-	invoiceCache  map[int64]*lnrpc.AddInvoiceResponse
-	mcCache       map[string]int64
-	failedPairs   []*lnrpc.NodePair
+	lnClient         lnrpc.LightningClient
+	routerClient     routerrpc.RouterClient
+	myPK             string
+	blockHeight      uint32
+	channels         []*lnrpc.Channel
+	fromChannels     []*lnrpc.Channel
+	fromChannelId    map[uint64]struct{}
+	toChannels       []*lnrpc.Channel
+	toChannelId      map[uint64]struct{}
+	channelPairs     map[string][2]*lnrpc.Channel
+	nodeCache        map[string]cachedNodeInfo
+	chanCache        map[uint64]*lnrpc.ChannelEdge
+	failureCache     map[string]failedRoute
+	excludeTo        map[uint64]struct{}
+	excludeFrom      map[uint64]struct{}
+	excludeBoth      map[uint64]struct{}
+	excludeNodes     [][]byte
+	statFilename     string
+	routeFound       bool
+	invoiceCache     map[int64]*lnrpc.AddInvoiceResponse
+	mcCache          map[string]int64
+	failedPairs      []*lnrpc.NodePair
+	timestatFilename string
+	timeQueryRoute   float64
+	timeSendToRoute  float64
 }
 
 func loadConfig() {
@@ -322,13 +326,17 @@ func main() {
 		log.Fatal(err)
 	}
 	r := regolancer{
-		nodeCache:    map[string]cachedNodeInfo{},
-		chanCache:    map[uint64]*lnrpc.ChannelEdge{},
-		channelPairs: map[string][2]*lnrpc.Channel{},
-		failureCache: map[string]failedRoute{},
-		mcCache:      map[string]int64{},
-		statFilename: params.StatFilename,
+		nodeCache:        map[string]cachedNodeInfo{},
+		chanCache:        map[uint64]*lnrpc.ChannelEdge{},
+		channelPairs:     map[string][2]*lnrpc.Channel{},
+		failureCache:     map[string]failedRoute{},
+		mcCache:          map[string]int64{},
+		statFilename:     params.StatFilename,
+		timestatFilename: params.TimestatFilename,
 	}
+
+	defer r.writeTimeStats()
+
 	r.lnClient = lnrpc.NewLightningClient(conn)
 	r.routerClient = routerrpc.NewRouterClient(conn)
 	mainCtx, mainCtxCancel := context.WithTimeout(context.Background(), time.Minute*time.Duration(params.TimeoutRebalance))
@@ -436,5 +444,41 @@ func main() {
 			}
 			return
 		}
+	}
+}
+
+// writeTimeStats writes the accumulated time statistics to the CSV file
+func (r *regolancer) writeTimeStats() {
+	if r.timestatFilename == "" {
+		return
+	}
+
+	f, err := os.OpenFile(r.timestatFilename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Printf("Error writing time stats: %v", err)
+		return
+	}
+
+	defer f.Close()
+
+	// Write header if file is new
+	info, err := f.Stat()
+	if err != nil {
+		log.Printf("Error writing time stats: %v", err)
+		return
+	}
+	if info.Size() == 0 {
+		_, err := f.WriteString("timestamp,timeQueryRoute,timeSendToRoute\n")
+		if err != nil {
+			log.Printf("Error writing CSV header: %v", err)
+			return
+		}
+	}
+
+	timestamp := time.Now().Unix()
+	line := fmt.Sprintf("%d,%.6f,%.6f\n", timestamp, r.timeQueryRoute, r.timeSendToRoute)
+	_, err = f.WriteString(line)
+	if err != nil {
+		log.Printf("Error writing time stats: %v", err)
 	}
 }

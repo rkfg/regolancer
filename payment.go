@@ -67,11 +67,15 @@ func (r *regolancer) pay(ctx context.Context, amount int64, minAmount int64, max
 		TotalAmtMsat: amount * 1000,
 	}
 
+	sendStart := time.Now()
 	result, err := r.routerClient.SendToRouteV2(ctx,
 		&routerrpc.SendToRouteRequest{
 			PaymentHash: invoice.RHash,
 			Route:       route,
 		})
+	dur := time.Since(sendStart).Seconds()
+	r.timeSendToRoute += dur
+
 	if err != nil {
 		logErrorF("error sending payment %s", err)
 		return err
