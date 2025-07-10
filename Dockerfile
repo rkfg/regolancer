@@ -1,4 +1,4 @@
-FROM golang:1.19.2-alpine as builder 
+FROM golang:1.23.11-alpine as builder 
 
 
 # Pass a tag, branch or a commit using build-arg.  This allows a docker
