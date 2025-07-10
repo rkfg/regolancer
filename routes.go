@@ -16,6 +16,22 @@ const (
 	COIN = 1e8
 )
 
+func calcEconMarginMsat(amtMsat int64, feeRateMilliMsat int64, ratio float64, marginPpm int64, lostProfitPPM int64) int64 {
+
+	// (1 - ratio) determines the ratio for our rebalancing margin.
+	econMarginMsat := int64(float64(amtMsat*feeRateMilliMsat) * (1 - ratio) / 1e6)
+
+	// If the lost profit is below our margin requirements, then we add the
+	// difference to the econ margin.
+	var marginAddonMsat int64
+	if lostProfitPPM < marginPpm {
+		marginAddonMsat = amtMsat * (marginPpm - lostProfitPPM) / 1e6
+	}
+	econMarginMsat += marginAddonMsat
+
+	return econMarginMsat
+}
+
 func (r *regolancer) getChanInfo(ctx context.Context, chanId uint64) (*lnrpc.ChannelEdge, error) {
 	if c, ok := r.chanCache[chanId]; ok {
 		return c, nil
@@ -42,7 +58,7 @@ func (r *regolancer) calcFeeLimitMsat(ctx context.Context, to uint64,
 	return
 }
 
-func (r *regolancer) calcEconFeeMsat(ctx context.Context, from, to uint64, amtMsat int64, ratio float64) (feeMsat int64,
+func (r *regolancer) calcEconFeeMsat(ctx context.Context, from, to uint64, amtMsat int64, ratio float64, marginPpm int64) (feeMsat int64,
 	lastPKstr string, err error) {
 	cTo, err := r.getChanInfo(ctx, to)
 	if err != nil {
@@ -55,6 +71,7 @@ func (r *regolancer) calcEconFeeMsat(ctx context.Context, from, to uint64, amtMs
 		policyTo = cTo.Node1Policy
 	}
 	lostProfitMsat := int64(0)
+	lostProfitPPM := int64(0)
 	if params.LostProfit {
 		cFrom, err := r.getChanInfo(ctx, from)
 		if err != nil {
@@ -66,9 +83,13 @@ func (r *regolancer) calcEconFeeMsat(ctx context.Context, from, to uint64, amtMs
 		}
 		lostProfitMsat = int64(float64(policyFrom.FeeBaseMsat+
 			amtMsat*policyFrom.FeeRateMilliMsat) / 1e6)
+		lostProfitPPM = policyFrom.FeeRateMilliMsat
 	}
+
+	econMarginMsat := calcEconMarginMsat(amtMsat, policyTo.FeeRateMilliMsat, ratio, marginPpm, lostProfitPPM)
+
 	feeMsat = int64(float64(policyTo.FeeBaseMsat+amtMsat*
-		policyTo.FeeRateMilliMsat)*ratio/1e6) - lostProfitMsat
+		policyTo.FeeRateMilliMsat)/1e6) - econMarginMsat - lostProfitMsat
 
 	if params.EconRatioMaxPPM != 0 && int64(float64(feeMsat)/float64(amtMsat)*1e6) > params.EconRatioMaxPPM {
 		feeMsat = params.EconRatioMaxPPM * amtMsat / 1e6
@@ -84,7 +105,7 @@ func (r *regolancer) calcFeeMsat(ctx context.Context, from, to uint64,
 	if params.FeeLimitPPM > 0 {
 		return r.calcFeeLimitMsat(ctx, to, amtMsat, params.FeeLimitPPM)
 	} else {
-		return r.calcEconFeeMsat(ctx, from, to, amtMsat, params.EconRatio)
+		return r.calcEconFeeMsat(ctx, from, to, amtMsat, params.EconRatio, params.ChannelMarginPPM)
 	}
 }
 

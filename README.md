@@ -1,3 +1,15 @@
+⚠️ **DISCLAIMER** ⚠️
+
+This is a personal fork of the original repository 
+https://github.com/rkfg/regolancer/ and is only maintained by one person. 
+Users should exercise extreme caution when using this tool as it involves 
+real Bitcoin payments and Lightning Network transactions. Use at your own 
+risk and thoroughly test with small amounts first. The maintainer assumes 
+no responsibility for any financial losses or issues that may arise from 
+using this software.
+
+---
+
 # Intro
 
 Why even write another rebalancer? Usually, the only motivation is that the
