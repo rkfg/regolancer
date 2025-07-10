@@ -5,7 +5,7 @@ FROM golang:1.19.2-alpine as builder
 # image to be built from a specified Git state.  The default image
 # will use the Git tip of master by default.
 ARG checkout="master"
-ARG git_url="https://github.com/rkfg/regolancer.git"
+ARG git_url="https://github.com/feelancer21/regolancer.git"
 
 
 # Install dependencies and build the binaries.
