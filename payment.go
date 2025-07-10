@@ -31,7 +31,7 @@ func (r *regolancer) createInvoice(ctx context.Context, amount int64) (result *l
 	}
 	result, err = r.lnClient.AddInvoice(ctx, &lnrpc.Invoice{Value: amount,
 		Memo:   "Rebalance attempt",
-		Expiry: int64(time.Hour.Seconds() * 24)})
+		Expiry: params.InvoiceExpiry})
 	r.invoiceCache[amount] = result
 
 	return

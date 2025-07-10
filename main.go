@@ -56,6 +56,7 @@ type configParams struct {
 	ChannelMarginPPM    int64    `long:"channel-margin-ppm" description:"if the lost profit in ppm is below this value, we want a higher rebalancing margin up to this value" json:"channel_margin_ppm" toml:"channel_margin_ppm"`
 	FeeLimitPPM         int64    `short:"F" long:"fee-limit-ppm" description:"don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)" json:"fee_limit_ppm" toml:"fee_limit_ppm"`
 	LostProfit          bool     `short:"l" long:"lost-profit" description:"also consider the source channel fee when looking for profitable routes so that route_fee < target_fee * econ_ratio - source_fee" json:"lost_profit" toml:"lost_profit"`
+	InvoiceExpiry       int64    `long:"invoice-expiry" description:"invoice expiry time in seconds (default: 86400s)" json:"invoice_expiry" toml:"invoice_expiry"`
 	NodeCacheFilename   string   `rego-grouping:"Node Cache" long:"node-cache-filename" description:"save and load other nodes information to this file, improves cold start performance"  json:"node_cache_filename" toml:"node_cache_filename"`
 	NodeCacheLifetime   int      `long:"node-cache-lifetime" description:"nodes with last update older than this time (in minutes) will be removed from cache after loading it" json:"node_cache_lifetime" toml:"node_cache_lifetime"`
 	NodeCacheInfo       bool     `long:"node-cache-info" description:"show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively" json:"node_cache_info" toml:"node_cache_info"`
@@ -227,6 +228,9 @@ func preflightChecks(params *configParams) error {
 	if params.NodeCacheLifetime == 0 {
 		params.NodeCacheLifetime = 1440
 	}
+	if params.InvoiceExpiry == 0 {
+		params.InvoiceExpiry = 86400 // 24 hours in seconds
+	}
 	if len(params.ExcludeChannels) > 0 || len(params.ExcludeNodes) > 0 {
 		log.Print(infoColor("--exclude-channel and exclude_channel parameter are deprecated, use --exclude or exclude parameter instead for both channels and nodes"))
 		if len(params.Exclude) > 0 {
@@ -259,6 +263,14 @@ func preflightChecks(params *configParams) error {
 	}
 	if params.TimeoutRoute == 0 {
 		params.TimeoutRoute = 30
+	}
+
+	// Additional sanity check: Invoice should expire before the timeout rebalance
+	// to ensure that the invoice is valid for the entire session.
+	if params.InvoiceExpiry < int64(params.TimeoutRebalance)*60 {
+		return fmt.Errorf("invoice-expiry (%ds) must be greater than or equal to "+
+			"timeout-rebalance (%dm = %ds)", params.InvoiceExpiry,
+			params.TimeoutRebalance, params.TimeoutRebalance*60)
 	}
 
 	return nil
