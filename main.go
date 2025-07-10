@@ -15,11 +15,11 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/feelancer21/regolancer/helpmessage"
 	"github.com/jessevdk/go-flags"
 	"github.com/lightninglabs/lndclient"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
-	"github.com/rkfg/regolancer/helpmessage"
 )
 
 type configParams struct {

@@ -22,7 +22,9 @@ func printVersion() {
 		if settings["vcs.modified"] == "true" {
 			version += "-dirty"
 		}
-		fmt.Printf("Regolancer %s, built with %s\nSource: https://github.com/rkfg/regolancer\n", version, info.GoVersion)
+		fmt.Printf("Regolancer %s, built with %s\n"+
+			"Source: https://github.com/feelancer21/regolancer\n"+
+			"Forked from: https://github.com/rkfg/regolancer\n", version, info.GoVersion)
 	}
 	os.Exit(1)
 }
