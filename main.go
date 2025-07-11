@@ -20,6 +20,12 @@ import (
 	"github.com/lightninglabs/lndclient"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
+	"github.com/lightningnetwork/lnd/lnrpc/walletrpc"
+	"github.com/lightningnetwork/lnd/lnwallet/chainfee"
+)
+
+const (
+	CONF_TARGET = 6 // default confirmation target for fee estimation
 )
 
 type configParams struct {
@@ -40,6 +46,7 @@ type configParams struct {
 	MinAmount             int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
 	MinOutgoingHtlcExpiry int64    `rego-grouping:"Common" long:"min-outgoing-htlc-expiry" description:"minimum expiry (in blocks relative to current block height) for an HTLC for a channel to qualify as a from channel (default: 0)" json:"min_outgoing_htlc_expiry" toml:"min_outgoing_htlc_expiry"`
 	MaxHtlcCount          int64    `rego-grouping:"Common" long:"max-htlc-count" description:"maximum number of pending HTLCs for a channel to qualify as a from channel (default: infinity). A value of 0 cannot be used - use exclude-from instead." json:"max_htlc_count" toml:"max_htlc_count"`
+	MaxOnchainFeerate     float64  `rego-grouping:"Common" long:"max-onchain-feerate" description:"maximum allowed onchain fee rate in sat/vbyte for 6 blocks to start the rebalancing. (default: 0, no limit)" json:"max_onchain_feerate" toml:"max_onchain_feerate"`
 	ExcludeChannelsIn     []string `short:"i" long:"exclude-channel-in" description:"(DEPRECATED) don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
 	ExcludeChannelsOut    []string `short:"o" long:"exclude-channel-out" description:"(DEPRECATED) don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
 	ExcludeFrom           []string `long:"exclude-from" description:"don't use this node or channel as source (can be specified multiple times)" json:"exclude_from" toml:"exclude_from"`
@@ -353,6 +360,25 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Check if is the network fee is sufficiently low to start the rebalancing.
+	if params.MaxOnchainFeerate > 0 {
+		resp, err := walletrpc.NewWalletKitClient(conn).EstimateFee(
+			infoCtx, &walletrpc.EstimateFeeRequest{ConfTarget: CONF_TARGET},
+		)
+		if err != nil {
+			log.Fatal("Error estimating fee: ", err)
+		}
+
+		rateVB := float64(chainfee.SatPerKWeight(resp.SatPerKw).FeePerVByte())
+		if rateVB > params.MaxOnchainFeerate {
+			log.Printf("Onchain fee rate %v sat/vbyte is higher than the maximum allowed %v sat/vbyte, exiting",
+				rateVB, params.MaxOnchainFeerate)
+			exitCode = 3
+			return
+		}
+	}
+
 	r.myPK = info.IdentityPubkey
 	r.blockHeight = info.BlockHeight
 	err = r.getChannels(infoCtx)
