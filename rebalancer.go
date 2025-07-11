@@ -248,7 +248,7 @@ Loop:
 			delete(r.channelPairs, k)
 		}
 
-		err = r.getChannelCandidates(params.FromPerc, params.ToPerc, amtLocal)
+		err = r.getChannelCandidates(params.FromPerc, params.ToPerc)
 
 		if err != nil {
 			logErrorF("Error selecting channel candidates: %s", err)

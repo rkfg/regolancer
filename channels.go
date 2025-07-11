@@ -60,7 +60,7 @@ func parseNodeChannelIDs(ids []string) (chans map[uint64]struct{}, nodes [][]byt
 	return
 }
 
-func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error {
+func (r *regolancer) getChannelCandidates(fromPerc, toPerc int64) error {
 
 	minExpiry := int64(r.blockHeight) + params.MinOutgoingHtlcExpiry
 	// Checks the number and expiry of pending outgoing HTLCs in a channel.

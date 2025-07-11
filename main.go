@@ -428,7 +428,7 @@ func main() {
 
 	r.invoiceCache = map[int64]*lnrpc.AddInvoiceResponse{}
 
-	err = r.getChannelCandidates(params.FromPerc, params.ToPerc, params.Amount)
+	err = r.getChannelCandidates(params.FromPerc, params.ToPerc)
 
 	if err != nil {
 		log.Fatal("Error choosing channels: ", err)
