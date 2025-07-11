@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"os/signal"
 	"reflect"
@@ -299,8 +298,6 @@ func main() {
 	defer func() {
 		os.Exit(exitCode)
 	}()
-
-	rand.Seed(time.Now().UnixNano())
 
 	loadConfig()
 	parser := flags.NewParser(&params, flags.PrintErrors|flags.PassDoubleDash)
