@@ -22,13 +22,13 @@ const (
 	decreaseAmtRapidRebalance string = "decrease"
 )
 
-func (r *regolancer) tryRebalance(ctx context.Context, attempt *int) (err error,
-	repeat bool) {
+func (r *regolancer) tryRebalance(ctx context.Context, attempt *int,
+	amount int64) (err error, repeat bool) {
 	attemptCtx, attemptCancel := context.WithTimeout(ctx, time.Minute*time.Duration(params.TimeoutAttempt))
 
 	defer attemptCancel()
 
-	from, to, amt, err := r.pickChannelPair(params.Amount, params.MinAmount, params.RelAmountFrom, params.RelAmountTo)
+	from, to, amt, err := r.pickChannelPair(amount, params.MinAmount, params.RelAmountFrom, params.RelAmountTo)
 	if err != nil {
 		log.Printf(errColor("Error during picking channel: %s"), err)
 		return err, false

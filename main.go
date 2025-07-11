@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 	"reflect"
@@ -38,6 +39,7 @@ type configParams struct {
 	ToPerc                int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto" toml:"pto"`
 	Perc                  int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc" toml:"perc"`
 	Amount                int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount" toml:"amount"`
+	MaxAmountRandom       int64    `long:"max-amount-random" description:"If set the actual amount is random between amount and this value" json:"max_amount_random" toml:"max_amount_random"`
 	RelAmountTo           float64  `long:"rel-amount-to" description:"calculate amount as the target channel capacity fraction (for example, 0.2 means you want to achieve at most 20% target channel local balance)" json:"rel_amount_to" toml:"rel_amount_to"`
 	RelAmountFrom         float64  `long:"rel-amount-from" description:"calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)" json:"rel_amount_from" toml:"rel_amount_from"`
 	ProbeSteps            int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
@@ -230,6 +232,10 @@ func preflightChecks(params *configParams) error {
 	if params.Amount == 0 && params.RelAmountFrom == 0 && params.RelAmountTo == 0 {
 		return fmt.Errorf("no amount specified, use either --amount, --rel-amount-from, or --rel-amount-to")
 	}
+	if params.MaxAmountRandom > 0 && params.Amount > params.MaxAmountRandom {
+		return fmt.Errorf("max-amount-random (%d) should be greater equal than amount (%d)", params.MaxAmountRandom, params.Amount)
+	}
+
 	if params.FailTolerance == 0 {
 		params.FailTolerance = 1000
 	}
@@ -460,8 +466,15 @@ func main() {
 		os.Exit(1)
 	}()
 
+	amount := params.Amount
+	// create a random amount if requested
+	if params.MaxAmountRandom > 0 {
+		// add 1 to create an amount in the range of [amount, maxAmountRandom]
+		amount += rand.Int63n(1 + params.MaxAmountRandom - params.Amount)
+	}
+
 	for {
-		err, retry := r.tryRebalance(mainCtx, &attempt)
+		err, retry := r.tryRebalance(mainCtx, &attempt, amount)
 		if mainCtx.Err() == context.DeadlineExceeded {
 			log.Println(errColor("Rebalancing timed out"))
 			exitCode = 2
