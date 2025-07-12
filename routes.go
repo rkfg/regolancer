@@ -135,6 +135,42 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 	dur := time.Since(start).Seconds()
 	r.timeQueryRoute += dur
 
+	if params.Verbose {
+		errStr := ""
+		if err != nil {
+			errStr = fmt.Sprintf(", error: %s", err)
+		}
+		lenRoute := 0
+		if routes != nil {
+			lenRoute = len(routes.Routes)
+		}
+		aliasTo := "unknown"
+		nodeTo, err := r.getNodeInfo(routeCtx, lastPKstr)
+		if err == nil {
+			aliasTo = nodeTo.Node.Alias
+		}
+
+		aliasFrom := "unknown"
+		chanFrom, err := r.getChanInfo(routeCtx, from)
+		if err == nil {
+			var nodeFrom *lnrpc.NodeInfo
+			if chanFrom.Node1Pub == r.myPK {
+				nodeFrom, err = r.getNodeInfo(routeCtx, chanFrom.Node2Pub)
+			} else {
+				nodeFrom, err = r.getNodeInfo(routeCtx, chanFrom.Node1Pub)
+			}
+			if err == nil {
+				aliasFrom = nodeFrom.Node.Alias
+			}
+		}
+		log.Printf(
+			"QueryRoutes took %s seconds and found %d route, fee limit: %s sat "+
+				"| %s ppm, from: %s[%s], to: %s[%s]"+errStr,
+			hiWhiteColorF("%.3f", dur), lenRoute, formatFee(feeMsat),
+			formatFeePPM(amtMsat, feeMsat), hiWhiteColor(from), cyanColor(aliasFrom),
+			hiWhiteColor(lastPKstr), cyanColor(aliasTo))
+	}
+
 	if err != nil {
 		return nil, 0, err
 	}

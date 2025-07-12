@@ -76,6 +76,7 @@ type configParams struct {
 	TimeoutRoute          int      `long:"timeout-route" description:"max channel selection and route query time in seconds" json:"timeout_route" toml:"timeout_route"`
 	StatFilename          string   `rego-grouping:"Others" short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
 	TimestatFilename      string   `long:"timestat" description:"save timing statistics (QueryRoute, SendToRoute) to the specified CSV file" json:"timestat" toml:"timestat"`
+	Verbose               bool     `long:"verbose" description:"show verbose output for each QueryRoute"`
 	Version               bool     `short:"v" long:"version" description:"show program version and exit"`
 	Info                  bool     `long:"info" description:"show rebalance information"`
 	Help                  bool     `short:"h" long:"help" description:"Show this help message"`
