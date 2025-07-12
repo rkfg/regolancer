@@ -82,7 +82,9 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc int64) error {
 
 	for _, c := range r.channels {
 
-		if params.ExcludeChannelAge != 0 && uint64(r.blockHeight)-getChannelAge(c.ChanId) < params.ExcludeChannelAge {
+		channelAge := uint64(r.blockHeight) - getChannelAge(c.ChanId)
+		if params.ExcludeChannelAge != 0 && channelAge < params.ExcludeChannelAge {
+			log.Printf("Skipping channel %d, too young (age %d)", c.ChanId, channelAge)
 			continue
 		}
 
