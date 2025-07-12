@@ -74,60 +74,69 @@ in `~/go/bin/linux_arm`.
 
 ```
 Config:
-  -f, --config                 config file path
+  -f, --config                    config file path
 
 Node Connection:
-  -c, --connect                connect to lnd using host:port
-  -t, --tlscert                path to tls.cert to connect
-      --macaroon-dir           path to the macaroon directory
-      --macaroon-filename      macaroon filename
-  -n, --network                bitcoin network to use
+  -c, --connect                   connect to lnd using host:port
+  -t, --tlscert                   path to tls.cert to connect
+      --macaroon-dir              path to the macaroon directory
+      --macaroon-filename         macaroon filename
+  -n, --network                   bitcoin network to use
 
 Common:
-      --pfrom                  channels with less than this inbound liquidity percentage will be considered as source channels
-      --pto                    channels with less than this outbound liquidity percentage will be considered as target channels
-  -p, --perc                   use this value as both pfrom and pto from above
-  -a, --amount                 amount to rebalance
-      --rel-amount-to          calculate amount as the target channel capacity fraction (for example, 0.2 means you want to achieve at most 20% target channel local balance)
-      --rel-amount-from        calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)
-  -b, --probe-steps            if the payment fails at the last hop try to probe lower amount using this many steps
-      --allow-rapid-rebalance  if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied
-      --min-amount             if probing is enabled this will be the minimum amount to try
-  -i, --exclude-channel-in     (DEPRECATED) don't use this channel as incoming (can be specified multiple times)
-  -o, --exclude-channel-out    (DEPRECATED) don't use this channel as outgoing (can be specified multiple times)
-      --exclude-from           don't use this node or channel as source (can be specified multiple times)
-      --exclude-to             don't use this node or channel as target (can be specified multiple times)
-  -e, --exclude-channel        (DEPRECATED) don't use this channel at all (can be specified multiple times)
-  -d, --exclude-node           (DEPRECATED) don't use this node for routing (can be specified multiple times)
-      --exclude                don't use this node or your channel for routing (can be specified multiple times)
-      --exclude-channel-age    don't use channels opened less than this number of blocks ago
-      --to                     try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)
-      --from                   try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)
-      --fail-tolerance         a payment that differs from the prior attempt by this ppm will be cancelled
-      --allow-unbalance-from   (DEPRECATED) let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50
-      --allow-unbalance-to     (DEPRECATED) let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50
-  -r, --econ-ratio             economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might
-                               earn for routing out of the target channel)
-      --econ-ratio-max-ppm     limits the max fee ppm for a rebalance when using econ ratio
-  -F, --fee-limit-ppm          don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)
-  -l, --lost-profit            also consider the source channel fee when looking for profitable routes so that route_fee < target_fee * econ_ratio - source_fee
+      --pfrom                     channels with less than this inbound liquidity percentage will be considered as source channels
+      --pto                       channels with less than this outbound liquidity percentage will be considered as target channels
+  -p, --perc                      use this value as both pfrom and pto from above
+  -a, --amount                    amount to rebalance
+      --max-amount-random         If set the actual amount is random between amount and this value
+      --rel-amount-to             calculate amount as the target channel capacity fraction (for example, 0.2 means you want to achieve at most 20% target channel local balance)
+      --rel-amount-from           calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)
+  -b, --probe-steps               if the payment fails at the last hop try to probe lower amount using this many steps
+      --allow-rapid-rebalance     if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied
+      --min-amount                if probing is enabled this will be the minimum amount to try
+      --min-outgoing-htlc-expiry  minimum expiry (in blocks relative to current block height) for an HTLC for a channel to qualify as a from channel (default: 0)
+      --max-htlc-count            maximum number of pending HTLCs for a channel to qualify as a from channel (default: infinity). A value of 0 cannot be used - use exclude-from instead.
+      --max-onchain-feerate       maximum allowed onchain fee rate in sat/vbyte for 6 blocks to start the rebalancing. (default: 0, no limit)
+  -i, --exclude-channel-in        (DEPRECATED) don't use this channel as incoming (can be specified multiple times)
+  -o, --exclude-channel-out       (DEPRECATED) don't use this channel as outgoing (can be specified multiple times)
+      --exclude-from              don't use this node or channel as source (can be specified multiple times)
+      --exclude-to                don't use this node or channel as target (can be specified multiple times)
+  -e, --exclude-channel           (DEPRECATED) don't use this channel at all (can be specified multiple times)
+  -d, --exclude-node              (DEPRECATED) don't use this node for routing (can be specified multiple times)
+      --exclude                   don't use this node or your channel for routing (can be specified multiple times)
+      --exclude-channel-age       don't use channels opened less than this number of blocks ago
+      --to                        try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)
+      --from                      try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)
+      --fail-tolerance            a payment that differs from the prior attempt by this ppm will be cancelled
+      --allow-unbalance-from      (DEPRECATED) let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50
+      --allow-unbalance-to        (DEPRECATED) let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50
+  -r, --econ-ratio                economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target
+                                  channel)
+      --econ-ratio-max-ppm        limits the max fee ppm for a rebalance when using econ ratio
+      --channel-margin-ppm        if the lost profit in ppm is below this value, we want a higher rebalancing margin up to this value
+  -F, --fee-limit-ppm             don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)
+  -l, --lost-profit               also consider the source channel fee when looking for profitable routes so that route_fee < target_fee * econ_ratio - source_fee
+      --invoice-expiry            invoice expiry time in seconds (default: 86400s)
 
 Node Cache:
-      --node-cache-filename    save and load other nodes information to this file, improves cold start performance
-      --node-cache-lifetime    nodes with last update older than this time (in minutes) will be removed from cache after loading it
-      --node-cache-info        show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively
+      --node-cache-filename       save and load other nodes information to this file, improves cold start performance
+      --node-cache-lifetime       nodes with last update older than this time (in minutes) will be removed from cache after loading it
+      --node-cache-info           show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively
 
 Timeouts:
-      --timeout-rebalance      max rebalance session time in minutes
-      --timeout-attempt        max attempt time in minutes
-      --timeout-info           max general info query time (local channels, node id etc.) in seconds
-      --timeout-route          max channel selection and route query time in seconds
+      --timeout-rebalance         max rebalance session time in minutes
+      --timeout-attempt           max attempt time in minutes
+      --timeout-info              max general info query time (local channels, node id etc.) in seconds
+      --timeout-route             max channel selection and route query time in seconds
 
 Others:
-  -s, --stat                   save successful rebalance information to the specified CSV file
-  -v, --version                show program version and exit
-      --info                   show rebalance information
-  -h, --help                   Show this help message
+  -s, --stat                      save successful rebalance information to the specified CSV file
+      --timestat                  save timing statistics (QueryRoute, SendToRoute) to the specified CSV file
+      --verbose                   show verbose output for each QueryRoute
+      --no-send                   don't send payments, just print the routes
+  -v, --version                   show program version and exit
+      --info                      show rebalance information
+  -h, --help                      Show this help message
 ```
 
 Look in `config.json.sample` or `config.toml.sample` for corresponding keys,
