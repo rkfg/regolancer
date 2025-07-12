@@ -185,6 +185,16 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 	if len(result) == 0 {
 		return r.getRoutes(ctx, from, to, amtMsat)
 	}
+
+	if params.NoSend {
+		for _, route := range result {
+			fmt.Print("\n")
+			r.printRoute(ctx, route)
+			fmt.Print("\n")
+		}
+		return nil, 0, fmt.Errorf("NoSend is enabled, just printing the route")
+	}
+
 	r.routeFound = true
 	return result, feeMsat, nil
 }
