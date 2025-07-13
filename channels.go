@@ -60,11 +60,31 @@ func parseNodeChannelIDs(ids []string) (chans map[uint64]struct{}, nodes [][]byt
 	return
 }
 
-func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error {
+func (r *regolancer) getChannelCandidates(fromPerc, toPerc int64) error {
+
+	minExpiry := int64(r.blockHeight) + params.MinOutgoingHtlcExpiry
+	// Checks the number and expiry of pending outgoing HTLCs in a channel.
+	checkOutgoingHtlcs := func(channel *lnrpc.Channel) error {
+		if len(channel.PendingHtlcs) > int(params.MaxHtlcCount) {
+			return fmt.Errorf("too many pending HTLCs (%d)", len(channel.PendingHtlcs))
+
+		}
+
+		for _, htlc := range channel.PendingHtlcs {
+			if !htlc.Incoming && int64(htlc.ExpirationHeight) < minExpiry {
+				return fmt.Errorf("pending HTLC with expiry %d, which is below "+
+					"the minimum expiry %d", htlc.ExpirationHeight, minExpiry)
+			}
+		}
+
+		return nil
+	}
 
 	for _, c := range r.channels {
 
-		if params.ExcludeChannelAge != 0 && uint64(r.blockHeight)-getChannelAge(c.ChanId) < params.ExcludeChannelAge {
+		channelAge := uint64(r.blockHeight) - getChannelAge(c.ChanId)
+		if params.ExcludeChannelAge != 0 && channelAge < params.ExcludeChannelAge {
+			log.Printf("Skipping channel %d, too young (age %d)", c.ChanId, channelAge)
 			continue
 		}
 
@@ -81,6 +101,12 @@ func (r *regolancer) getChannelCandidates(fromPerc, toPerc, amount int64) error 
 		}
 		if _, ok := r.excludeFrom[c.ChanId]; !ok {
 			if _, ok := r.fromChannelId[c.ChanId]; ok || len(r.fromChannelId) == 0 {
+				err := checkOutgoingHtlcs(c)
+				if err != nil {
+					log.Printf("Skipping from channel %d: %s", c.ChanId, err)
+					continue
+				}
+
 				if c.RemoteBalance < c.Capacity*fromPerc/100 {
 					r.fromChannels = append(r.fromChannels, c)
 				}

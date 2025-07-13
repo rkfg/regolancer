@@ -120,6 +120,8 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 	if err != nil {
 		return nil, 0, err
 	}
+
+	start := time.Now()
 	routes, err := r.lnClient.QueryRoutes(routeCtx, &lnrpc.QueryRoutesRequest{
 		PubKey:            r.myPK,
 		OutgoingChanId:    from,
@@ -130,6 +132,45 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 		IgnoredNodes:      r.excludeNodes,
 		IgnoredPairs:      r.failedPairs,
 	})
+	dur := time.Since(start).Seconds()
+	r.timeQueryRoute += dur
+
+	if params.Verbose {
+		errStr := ""
+		if err != nil {
+			errStr = fmt.Sprintf(", error: %s", err)
+		}
+		lenRoute := 0
+		if routes != nil {
+			lenRoute = len(routes.Routes)
+		}
+		aliasTo := "unknown"
+		nodeTo, err := r.getNodeInfo(routeCtx, lastPKstr)
+		if err == nil {
+			aliasTo = nodeTo.Node.Alias
+		}
+
+		aliasFrom := "unknown"
+		chanFrom, err := r.getChanInfo(routeCtx, from)
+		if err == nil {
+			var nodeFrom *lnrpc.NodeInfo
+			if chanFrom.Node1Pub == r.myPK {
+				nodeFrom, err = r.getNodeInfo(routeCtx, chanFrom.Node2Pub)
+			} else {
+				nodeFrom, err = r.getNodeInfo(routeCtx, chanFrom.Node1Pub)
+			}
+			if err == nil {
+				aliasFrom = nodeFrom.Node.Alias
+			}
+		}
+		log.Printf(
+			"QueryRoutes took %s seconds and found %d route, fee limit: %s sat "+
+				"| %s ppm, from: %s[%s], to: %s[%s]"+errStr,
+			hiWhiteColorF("%.3f", dur), lenRoute, formatFee(feeMsat),
+			formatFeePPM(amtMsat, feeMsat), hiWhiteColor(from), cyanColor(aliasFrom),
+			hiWhiteColor(lastPKstr), cyanColor(aliasTo))
+	}
+
 	if err != nil {
 		return nil, 0, err
 	}
@@ -144,6 +185,16 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 	if len(result) == 0 {
 		return r.getRoutes(ctx, from, to, amtMsat)
 	}
+
+	if params.NoSend {
+		for _, route := range result {
+			fmt.Print("\n")
+			r.printRoute(ctx, route)
+			fmt.Print("\n")
+		}
+		return nil, 0, fmt.Errorf("NoSend is enabled, just printing the route")
+	}
+
 	r.routeFound = true
 	return result, feeMsat, nil
 }

@@ -20,53 +20,67 @@ import (
 	"github.com/lightninglabs/lndclient"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
+	"github.com/lightningnetwork/lnd/lnrpc/walletrpc"
+	"github.com/lightningnetwork/lnd/lnwallet/chainfee"
+)
+
+const (
+	CONF_TARGET = 6 // default confirmation target for fee estimation
 )
 
 type configParams struct {
-	Config              string   `rego-grouping:"Config" short:"f" long:"config" description:"config file path"`
-	Connect             string   `rego-grouping:"Node Connection" short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect" toml:"connect"`
-	TLSCert             string   `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert" toml:"tlscert"`
-	MacaroonDir         string   `long:"macaroon-dir" description:"path to the macaroon directory" required:"false" json:"macaroon_dir" toml:"macaroon_dir"`
-	MacaroonFilename    string   `long:"macaroon-filename" description:"macaroon filename" json:"macaroon_filename" toml:"macaroon_filename"`
-	Network             string   `short:"n" long:"network" description:"bitcoin network to use" json:"network" toml:"network"`
-	FromPerc            int64    `rego-grouping:"Common" long:"pfrom" description:"channels with less than this inbound liquidity percentage will be considered as source channels" json:"pfrom" toml:"pfrom"`
-	ToPerc              int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto" toml:"pto"`
-	Perc                int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc" toml:"perc"`
-	Amount              int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount" toml:"amount"`
-	RelAmountTo         float64  `long:"rel-amount-to" description:"calculate amount as the target channel capacity fraction (for example, 0.2 means you want to achieve at most 20% target channel local balance)" json:"rel_amount_to" toml:"rel_amount_to"`
-	RelAmountFrom       float64  `long:"rel-amount-from" description:"calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)" json:"rel_amount_from" toml:"rel_amount_from"`
-	ProbeSteps          int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
-	AllowRapidRebalance bool     `long:"allow-rapid-rebalance" description:"if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied" json:"allow_rapid_rebalance" toml:"allow_rapid_rebalance"`
-	MinAmount           int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
-	ExcludeChannelsIn   []string `short:"i" long:"exclude-channel-in" description:"(DEPRECATED) don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
-	ExcludeChannelsOut  []string `short:"o" long:"exclude-channel-out" description:"(DEPRECATED) don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
-	ExcludeFrom         []string `long:"exclude-from" description:"don't use this node or channel as source (can be specified multiple times)" json:"exclude_from" toml:"exclude_from"`
-	ExcludeTo           []string `long:"exclude-to" description:"don't use this node or channel as target (can be specified multiple times)" json:"exclude_to" toml:"exclude_to"`
-	ExcludeChannels     []string `short:"e" long:"exclude-channel" description:"(DEPRECATED) don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
-	ExcludeNodes        []string `short:"d" long:"exclude-node" description:"(DEPRECATED) don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
-	Exclude             []string `long:"exclude" description:"don't use this node or your channel for routing (can be specified multiple times)" json:"exclude" toml:"exclude"`
-	ExcludeChannelAge   uint64   `long:"exclude-channel-age" description:"don't use channels opened less than this number of blocks ago" json:"exclude_channel_age" toml:"exclude_channel_age"`
-	To                  []string `long:"to" description:"try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
-	From                []string `long:"from" description:"try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
-	FailTolerance       int64    `long:"fail-tolerance" description:"a payment that differs from the prior attempt by this ppm will be cancelled" json:"fail_tolerance" toml:"fail_tolerance"`
-	AllowUnbalanceFrom  bool     `long:"allow-unbalance-from" description:"(DEPRECATED) let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50" json:"allow_unbalance_from" toml:"allow_unbalance_from"`
-	AllowUnbalanceTo    bool     `long:"allow-unbalance-to" description:"(DEPRECATED) let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
-	EconRatio           float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio" toml:"econ_ratio"`
-	EconRatioMaxPPM     int64    `long:"econ-ratio-max-ppm" description:"limits the max fee ppm for a rebalance when using econ ratio" json:"econ_ratio_max_ppm" toml:"econ_ratio_max_ppm"`
-	ChannelMarginPPM    int64    `long:"channel-margin-ppm" description:"if the lost profit in ppm is below this value, we want a higher rebalancing margin up to this value" json:"channel_margin_ppm" toml:"channel_margin_ppm"`
-	FeeLimitPPM         int64    `short:"F" long:"fee-limit-ppm" description:"don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)" json:"fee_limit_ppm" toml:"fee_limit_ppm"`
-	LostProfit          bool     `short:"l" long:"lost-profit" description:"also consider the source channel fee when looking for profitable routes so that route_fee < target_fee * econ_ratio - source_fee" json:"lost_profit" toml:"lost_profit"`
-	NodeCacheFilename   string   `rego-grouping:"Node Cache" long:"node-cache-filename" description:"save and load other nodes information to this file, improves cold start performance"  json:"node_cache_filename" toml:"node_cache_filename"`
-	NodeCacheLifetime   int      `long:"node-cache-lifetime" description:"nodes with last update older than this time (in minutes) will be removed from cache after loading it" json:"node_cache_lifetime" toml:"node_cache_lifetime"`
-	NodeCacheInfo       bool     `long:"node-cache-info" description:"show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively" json:"node_cache_info" toml:"node_cache_info"`
-	TimeoutRebalance    int      `rego-grouping:"Timeouts" long:"timeout-rebalance" description:"max rebalance session time in minutes" json:"timeout_rebalance" toml:"timeout_rebalance"`
-	TimeoutAttempt      int      `long:"timeout-attempt" description:"max attempt time in minutes" json:"timeout_attempt" toml:"timeout_attempt"`
-	TimeoutInfo         int      `long:"timeout-info" description:"max general info query time (local channels, node id etc.) in seconds" json:"timeout_info" toml:"timeout_info"`
-	TimeoutRoute        int      `long:"timeout-route" description:"max channel selection and route query time in seconds" json:"timeout_route" toml:"timeout_route"`
-	StatFilename        string   `rego-grouping:"Others" short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
-	Version             bool     `short:"v" long:"version" description:"show program version and exit"`
-	Info                bool     `long:"info" description:"show rebalance information"`
-	Help                bool     `short:"h" long:"help" description:"Show this help message"`
+	Config                string   `rego-grouping:"Config" short:"f" long:"config" description:"config file path"`
+	Connect               string   `rego-grouping:"Node Connection" short:"c" long:"connect" description:"connect to lnd using host:port" json:"connect" toml:"connect"`
+	TLSCert               string   `short:"t" long:"tlscert" description:"path to tls.cert to connect" required:"false" json:"tlscert" toml:"tlscert"`
+	MacaroonDir           string   `long:"macaroon-dir" description:"path to the macaroon directory" required:"false" json:"macaroon_dir" toml:"macaroon_dir"`
+	MacaroonFilename      string   `long:"macaroon-filename" description:"macaroon filename" json:"macaroon_filename" toml:"macaroon_filename"`
+	Network               string   `short:"n" long:"network" description:"bitcoin network to use" json:"network" toml:"network"`
+	FromPerc              int64    `rego-grouping:"Common" long:"pfrom" description:"channels with less than this inbound liquidity percentage will be considered as source channels" json:"pfrom" toml:"pfrom"`
+	ToPerc                int64    `long:"pto" description:"channels with less than this outbound liquidity percentage will be considered as target channels" json:"pto" toml:"pto"`
+	Perc                  int64    `short:"p" long:"perc" description:"use this value as both pfrom and pto from above" json:"perc" toml:"perc"`
+	Amount                int64    `short:"a" long:"amount" description:"amount to rebalance" json:"amount" toml:"amount"`
+	MaxAmountRandom       int64    `long:"max-amount-random" description:"If set the actual amount is random between amount and this value" json:"max_amount_random" toml:"max_amount_random"`
+	RelAmountTo           float64  `long:"rel-amount-to" description:"calculate amount as the target channel capacity fraction (for example, 0.2 means you want to achieve at most 20% target channel local balance)" json:"rel_amount_to" toml:"rel_amount_to"`
+	RelAmountFrom         float64  `long:"rel-amount-from" description:"calculate amount as the source channel capacity fraction (for example, 0.2 means you want to achieve at most 20% source channel remote balance)" json:"rel_amount_from" toml:"rel_amount_from"`
+	ProbeSteps            int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
+	AllowRapidRebalance   bool     `long:"allow-rapid-rebalance" description:"if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied" json:"allow_rapid_rebalance" toml:"allow_rapid_rebalance"`
+	MinAmount             int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
+	MinOutgoingHtlcExpiry int64    `rego-grouping:"Common" long:"min-outgoing-htlc-expiry" description:"minimum expiry (in blocks relative to current block height) for an HTLC for a channel to qualify as a from channel (default: 0)" json:"min_outgoing_htlc_expiry" toml:"min_outgoing_htlc_expiry"`
+	MaxHtlcCount          int64    `rego-grouping:"Common" long:"max-htlc-count" description:"maximum number of pending HTLCs for a channel to qualify as a from channel (default: infinity). A value of 0 cannot be used - use exclude-from instead." json:"max_htlc_count" toml:"max_htlc_count"`
+	MaxOnchainFeerate     float64  `rego-grouping:"Common" long:"max-onchain-feerate" description:"maximum allowed onchain fee rate in sat/vbyte for 6 blocks to start the rebalancing. (default: 0, no limit)" json:"max_onchain_feerate" toml:"max_onchain_feerate"`
+	ExcludeChannelsIn     []string `short:"i" long:"exclude-channel-in" description:"(DEPRECATED) don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
+	ExcludeChannelsOut    []string `short:"o" long:"exclude-channel-out" description:"(DEPRECATED) don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
+	ExcludeFrom           []string `long:"exclude-from" description:"don't use this node or channel as source (can be specified multiple times)" json:"exclude_from" toml:"exclude_from"`
+	ExcludeTo             []string `long:"exclude-to" description:"don't use this node or channel as target (can be specified multiple times)" json:"exclude_to" toml:"exclude_to"`
+	ExcludeChannels       []string `short:"e" long:"exclude-channel" description:"(DEPRECATED) don't use this channel at all (can be specified multiple times)" json:"exclude_channels" toml:"exclude_channels"`
+	ExcludeNodes          []string `short:"d" long:"exclude-node" description:"(DEPRECATED) don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
+	Exclude               []string `long:"exclude" description:"don't use this node or your channel for routing (can be specified multiple times)" json:"exclude" toml:"exclude"`
+	ExcludeChannelAge     uint64   `long:"exclude-channel-age" description:"don't use channels opened less than this number of blocks ago" json:"exclude_channel_age" toml:"exclude_channel_age"`
+	To                    []string `long:"to" description:"try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
+	From                  []string `long:"from" description:"try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
+	FailTolerance         int64    `long:"fail-tolerance" description:"a payment that differs from the prior attempt by this ppm will be cancelled" json:"fail_tolerance" toml:"fail_tolerance"`
+	AllowUnbalanceFrom    bool     `long:"allow-unbalance-from" description:"(DEPRECATED) let the source channel go below 50% local liquidity, use if you want to drain a channel; you should also set --pfrom to >50" json:"allow_unbalance_from" toml:"allow_unbalance_from"`
+	AllowUnbalanceTo      bool     `long:"allow-unbalance-to" description:"(DEPRECATED) let the target channel go above 50% local liquidity, use if you want to refill a channel; you should also set --pto to >50" json:"allow_unbalance_to" toml:"allow_unbalance_to"`
+	EconRatio             float64  `short:"r" long:"econ-ratio" description:"economical ratio for fee limit calculation as a multiple of target channel fee (for example, 0.5 means you want to pay at max half the fee you might earn for routing out of the target channel)" json:"econ_ratio" toml:"econ_ratio"`
+	EconRatioMaxPPM       int64    `long:"econ-ratio-max-ppm" description:"limits the max fee ppm for a rebalance when using econ ratio" json:"econ_ratio_max_ppm" toml:"econ_ratio_max_ppm"`
+	ChannelMarginPPM      int64    `long:"channel-margin-ppm" description:"if the lost profit in ppm is below this value, we want a higher rebalancing margin up to this value" json:"channel_margin_ppm" toml:"channel_margin_ppm"`
+	FeeLimitPPM           int64    `short:"F" long:"fee-limit-ppm" description:"don't consider the target channel fee and use this max fee ppm instead (can rebalance at a loss, be careful)" json:"fee_limit_ppm" toml:"fee_limit_ppm"`
+	LostProfit            bool     `short:"l" long:"lost-profit" description:"also consider the source channel fee when looking for profitable routes so that route_fee < target_fee * econ_ratio - source_fee" json:"lost_profit" toml:"lost_profit"`
+	InvoiceExpiry         int64    `long:"invoice-expiry" description:"invoice expiry time in seconds (default: 86400s)" json:"invoice_expiry" toml:"invoice_expiry"`
+	NodeCacheFilename     string   `rego-grouping:"Node Cache" long:"node-cache-filename" description:"save and load other nodes information to this file, improves cold start performance"  json:"node_cache_filename" toml:"node_cache_filename"`
+	NodeCacheLifetime     int      `long:"node-cache-lifetime" description:"nodes with last update older than this time (in minutes) will be removed from cache after loading it" json:"node_cache_lifetime" toml:"node_cache_lifetime"`
+	NodeCacheInfo         bool     `long:"node-cache-info" description:"show red and cyan 'x' characters in routes to indicate node cache misses and hits respectively" json:"node_cache_info" toml:"node_cache_info"`
+	TimeoutRebalance      int      `rego-grouping:"Timeouts" long:"timeout-rebalance" description:"max rebalance session time in minutes" json:"timeout_rebalance" toml:"timeout_rebalance"`
+	TimeoutAttempt        int      `long:"timeout-attempt" description:"max attempt time in minutes" json:"timeout_attempt" toml:"timeout_attempt"`
+	TimeoutInfo           int      `long:"timeout-info" description:"max general info query time (local channels, node id etc.) in seconds" json:"timeout_info" toml:"timeout_info"`
+	TimeoutRoute          int      `long:"timeout-route" description:"max channel selection and route query time in seconds" json:"timeout_route" toml:"timeout_route"`
+	StatFilename          string   `rego-grouping:"Others" short:"s" long:"stat" description:"save successful rebalance information to the specified CSV file" json:"stat" toml:"stat"`
+	TimestatFilename      string   `long:"timestat" description:"save timing statistics (QueryRoute, SendToRoute) to the specified CSV file" json:"timestat" toml:"timestat"`
+	Verbose               bool     `long:"verbose" description:"show verbose output for each QueryRoute"`
+	NoSend                bool     `long:"no-send" description:"don't send payments, just print the routes"`
+	Version               bool     `short:"v" long:"version" description:"show program version and exit"`
+	Info                  bool     `long:"info" description:"show rebalance information"`
+	Help                  bool     `short:"h" long:"help" description:"Show this help message"`
 }
 
 var params, cfgParams configParams
@@ -82,28 +96,31 @@ type cachedNodeInfo struct {
 }
 
 type regolancer struct {
-	lnClient      lnrpc.LightningClient
-	routerClient  routerrpc.RouterClient
-	myPK          string
-	blockHeight   uint32
-	channels      []*lnrpc.Channel
-	fromChannels  []*lnrpc.Channel
-	fromChannelId map[uint64]struct{}
-	toChannels    []*lnrpc.Channel
-	toChannelId   map[uint64]struct{}
-	channelPairs  map[string][2]*lnrpc.Channel
-	nodeCache     map[string]cachedNodeInfo
-	chanCache     map[uint64]*lnrpc.ChannelEdge
-	failureCache  map[string]failedRoute
-	excludeTo     map[uint64]struct{}
-	excludeFrom   map[uint64]struct{}
-	excludeBoth   map[uint64]struct{}
-	excludeNodes  [][]byte
-	statFilename  string
-	routeFound    bool
-	invoiceCache  map[int64]*lnrpc.AddInvoiceResponse
-	mcCache       map[string]int64
-	failedPairs   []*lnrpc.NodePair
+	lnClient         lnrpc.LightningClient
+	routerClient     routerrpc.RouterClient
+	myPK             string
+	blockHeight      uint32
+	channels         []*lnrpc.Channel
+	fromChannels     []*lnrpc.Channel
+	fromChannelId    map[uint64]struct{}
+	toChannels       []*lnrpc.Channel
+	toChannelId      map[uint64]struct{}
+	channelPairs     map[string][2]*lnrpc.Channel
+	nodeCache        map[string]cachedNodeInfo
+	chanCache        map[uint64]*lnrpc.ChannelEdge
+	failureCache     map[string]failedRoute
+	excludeTo        map[uint64]struct{}
+	excludeFrom      map[uint64]struct{}
+	excludeBoth      map[uint64]struct{}
+	excludeNodes     [][]byte
+	statFilename     string
+	routeFound       bool
+	invoiceCache     map[int64]*lnrpc.AddInvoiceResponse
+	mcCache          map[string]int64
+	failedPairs      []*lnrpc.NodePair
+	timestatFilename string
+	timeQueryRoute   float64
+	timeSendToRoute  float64
 }
 
 func loadConfig() {
@@ -217,6 +234,10 @@ func preflightChecks(params *configParams) error {
 	if params.Amount == 0 && params.RelAmountFrom == 0 && params.RelAmountTo == 0 {
 		return fmt.Errorf("no amount specified, use either --amount, --rel-amount-from, or --rel-amount-to")
 	}
+	if params.MaxAmountRandom > 0 && params.Amount > params.MaxAmountRandom {
+		return fmt.Errorf("max-amount-random (%d) should be greater equal than amount (%d)", params.MaxAmountRandom, params.Amount)
+	}
+
 	if params.FailTolerance == 0 {
 		params.FailTolerance = 1000
 	}
@@ -226,6 +247,9 @@ func preflightChecks(params *configParams) error {
 	}
 	if params.NodeCacheLifetime == 0 {
 		params.NodeCacheLifetime = 1440
+	}
+	if params.InvoiceExpiry == 0 {
+		params.InvoiceExpiry = 86400 // 24 hours in seconds
 	}
 	if len(params.ExcludeChannels) > 0 || len(params.ExcludeNodes) > 0 {
 		log.Print(infoColor("--exclude-channel and exclude_channel parameter are deprecated, use --exclude or exclude parameter instead for both channels and nodes"))
@@ -261,6 +285,18 @@ func preflightChecks(params *configParams) error {
 		params.TimeoutRoute = 30
 	}
 
+	if params.MaxHtlcCount == 0 {
+		params.MaxHtlcCount = 1000000 // effectively no limit
+	}
+
+	// Additional sanity check: Invoice should expire before the timeout rebalance
+	// to ensure that the invoice is valid for the entire session.
+	if params.InvoiceExpiry < int64(params.TimeoutRebalance)*60 {
+		return fmt.Errorf("invoice-expiry (%ds) must be greater than or equal to "+
+			"timeout-rebalance (%dm = %ds)", params.InvoiceExpiry,
+			params.TimeoutRebalance, params.TimeoutRebalance*60)
+	}
+
 	return nil
 
 }
@@ -270,8 +306,6 @@ func main() {
 	defer func() {
 		os.Exit(exitCode)
 	}()
-
-	rand.Seed(time.Now().UnixNano())
 
 	loadConfig()
 	parser := flags.NewParser(&params, flags.PrintErrors|flags.PassDoubleDash)
@@ -310,13 +344,17 @@ func main() {
 		log.Fatal(err)
 	}
 	r := regolancer{
-		nodeCache:    map[string]cachedNodeInfo{},
-		chanCache:    map[uint64]*lnrpc.ChannelEdge{},
-		channelPairs: map[string][2]*lnrpc.Channel{},
-		failureCache: map[string]failedRoute{},
-		mcCache:      map[string]int64{},
-		statFilename: params.StatFilename,
+		nodeCache:        map[string]cachedNodeInfo{},
+		chanCache:        map[uint64]*lnrpc.ChannelEdge{},
+		channelPairs:     map[string][2]*lnrpc.Channel{},
+		failureCache:     map[string]failedRoute{},
+		mcCache:          map[string]int64{},
+		statFilename:     params.StatFilename,
+		timestatFilename: params.TimestatFilename,
 	}
+
+	defer r.writeTimeStats()
+
 	r.lnClient = lnrpc.NewLightningClient(conn)
 	r.routerClient = routerrpc.NewRouterClient(conn)
 	mainCtx, mainCtxCancel := context.WithTimeout(context.Background(), time.Minute*time.Duration(params.TimeoutRebalance))
@@ -327,6 +365,25 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Check if is the network fee is sufficiently low to start the rebalancing.
+	if params.MaxOnchainFeerate > 0 {
+		resp, err := walletrpc.NewWalletKitClient(conn).EstimateFee(
+			infoCtx, &walletrpc.EstimateFeeRequest{ConfTarget: CONF_TARGET},
+		)
+		if err != nil {
+			log.Fatal("Error estimating fee: ", err)
+		}
+
+		rateVB := float64(chainfee.SatPerKWeight(resp.SatPerKw).FeePerVByte())
+		if rateVB > params.MaxOnchainFeerate {
+			log.Printf("Onchain fee rate %v sat/vbyte is higher than the maximum allowed %v sat/vbyte, exiting",
+				rateVB, params.MaxOnchainFeerate)
+			exitCode = 3
+			return
+		}
+	}
+
 	r.myPK = info.IdentityPubkey
 	r.blockHeight = info.BlockHeight
 	err = r.getChannels(infoCtx)
@@ -376,7 +433,7 @@ func main() {
 
 	r.invoiceCache = map[int64]*lnrpc.AddInvoiceResponse{}
 
-	err = r.getChannelCandidates(params.FromPerc, params.ToPerc, params.Amount)
+	err = r.getChannelCandidates(params.FromPerc, params.ToPerc)
 
 	if err != nil {
 		log.Fatal("Error choosing channels: ", err)
@@ -411,8 +468,15 @@ func main() {
 		os.Exit(1)
 	}()
 
+	amount := params.Amount
+	// create a random amount if requested
+	if params.MaxAmountRandom > 0 {
+		// add 1 to create an amount in the range of [amount, maxAmountRandom]
+		amount += rand.Int63n(1 + params.MaxAmountRandom - params.Amount)
+	}
+
 	for {
-		err, retry := r.tryRebalance(mainCtx, &attempt)
+		err, retry := r.tryRebalance(mainCtx, &attempt, amount)
 		if mainCtx.Err() == context.DeadlineExceeded {
 			log.Println(errColor("Rebalancing timed out"))
 			exitCode = 2
@@ -424,5 +488,41 @@ func main() {
 			}
 			return
 		}
+	}
+}
+
+// writeTimeStats writes the accumulated time statistics to the CSV file
+func (r *regolancer) writeTimeStats() {
+	if r.timestatFilename == "" {
+		return
+	}
+
+	f, err := os.OpenFile(r.timestatFilename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.Printf("Error writing time stats: %v", err)
+		return
+	}
+
+	defer f.Close()
+
+	// Write header if file is new
+	info, err := f.Stat()
+	if err != nil {
+		log.Printf("Error writing time stats: %v", err)
+		return
+	}
+	if info.Size() == 0 {
+		_, err := f.WriteString("timestamp,timeQueryRoute,timeSendToRoute\n")
+		if err != nil {
+			log.Printf("Error writing CSV header: %v", err)
+			return
+		}
+	}
+
+	timestamp := time.Now().Unix()
+	line := fmt.Sprintf("%d,%.6f,%.6f\n", timestamp, r.timeQueryRoute, r.timeSendToRoute)
+	_, err = f.WriteString(line)
+	if err != nil {
+		log.Printf("Error writing time stats: %v", err)
 	}
 }
