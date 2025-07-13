@@ -94,8 +94,6 @@ Common:
   -b, --probe-steps               if the payment fails at the last hop try to probe lower amount using this many steps
       --allow-rapid-rebalance     if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied
       --min-amount                if probing is enabled this will be the minimum amount to try
-      --min-outgoing-htlc-expiry  minimum expiry (in blocks relative to current block height) for an HTLC for a channel to qualify as a from channel (default: 0)
-      --max-htlc-count            maximum number of pending HTLCs for a channel to qualify as a from channel (default: infinity). A value of 0 cannot be used - use exclude-from instead.
       --max-onchain-feerate       maximum allowed onchain fee rate in sat/vbyte for 6 blocks to start the rebalancing. (default: 0, no limit)
   -i, --exclude-channel-in        (DEPRECATED) don't use this channel as incoming (can be specified multiple times)
   -o, --exclude-channel-out       (DEPRECATED) don't use this channel as outgoing (can be specified multiple times)
@@ -105,6 +103,8 @@ Common:
   -d, --exclude-node              (DEPRECATED) don't use this node for routing (can be specified multiple times)
       --exclude                   don't use this node or your channel for routing (can be specified multiple times)
       --exclude-channel-age       don't use channels opened less than this number of blocks ago
+      --exclude-from-htlc-expiry  exclude from channels with pending HTLCs having expiry (in blocks relative to current block height) below this value (default: 0)
+      --exclude-from-htlc-count   exclude from channels with more than this number of pending HTLCs (default: infinity). A value of 0 cannot be used - use exclude-from instead.
       --to                        try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)
       --from                      try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)
       --fail-tolerance            a payment that differs from the prior attempt by this ppm will be cancelled

@@ -45,8 +45,6 @@ type configParams struct {
 	ProbeSteps            int      `short:"b" long:"probe-steps" description:"if the payment fails at the last hop try to probe lower amount using this many steps" json:"probe_steps" toml:"probe_steps"`
 	AllowRapidRebalance   bool     `long:"allow-rapid-rebalance" description:"if a rebalance succeeds the route will be used for further rebalances until criteria for channels is not satifsied" json:"allow_rapid_rebalance" toml:"allow_rapid_rebalance"`
 	MinAmount             int64    `long:"min-amount" description:"if probing is enabled this will be the minimum amount to try" json:"min_amount" toml:"min_amount"`
-	MinOutgoingHtlcExpiry int64    `rego-grouping:"Common" long:"min-outgoing-htlc-expiry" description:"minimum expiry (in blocks relative to current block height) for an HTLC for a channel to qualify as a from channel (default: 0)" json:"min_outgoing_htlc_expiry" toml:"min_outgoing_htlc_expiry"`
-	MaxHtlcCount          int64    `rego-grouping:"Common" long:"max-htlc-count" description:"maximum number of pending HTLCs for a channel to qualify as a from channel (default: infinity). A value of 0 cannot be used - use exclude-from instead." json:"max_htlc_count" toml:"max_htlc_count"`
 	MaxOnchainFeerate     float64  `rego-grouping:"Common" long:"max-onchain-feerate" description:"maximum allowed onchain fee rate in sat/vbyte for 6 blocks to start the rebalancing. (default: 0, no limit)" json:"max_onchain_feerate" toml:"max_onchain_feerate"`
 	ExcludeChannelsIn     []string `short:"i" long:"exclude-channel-in" description:"(DEPRECATED) don't use this channel as incoming (can be specified multiple times)" json:"exclude_channels_in" toml:"exclude_channels_in"`
 	ExcludeChannelsOut    []string `short:"o" long:"exclude-channel-out" description:"(DEPRECATED) don't use this channel as outgoing (can be specified multiple times)" json:"exclude_channels_out" toml:"exclude_channels_out"`
@@ -56,6 +54,8 @@ type configParams struct {
 	ExcludeNodes          []string `short:"d" long:"exclude-node" description:"(DEPRECATED) don't use this node for routing (can be specified multiple times)" json:"exclude_nodes" toml:"exclude_nodes"`
 	Exclude               []string `long:"exclude" description:"don't use this node or your channel for routing (can be specified multiple times)" json:"exclude" toml:"exclude"`
 	ExcludeChannelAge     uint64   `long:"exclude-channel-age" description:"don't use channels opened less than this number of blocks ago" json:"exclude_channel_age" toml:"exclude_channel_age"`
+	ExcludeFromHtlcExpiry int64    `rego-grouping:"Common" long:"exclude-from-htlc-expiry" description:"exclude from channels with pending HTLCs having expiry (in blocks relative to current block height) below this value (default: 0)" json:"exclude_from_htlc_expiry" toml:"exclude_from_htlc_expiry"`
+	ExcludeFromHtlcCount  int64    `rego-grouping:"Common" long:"exclude-from-htlc-count" description:"exclude from channels with more than this number of pending HTLCs (default: infinity). A value of 0 cannot be used - use exclude-from instead." json:"exclude_from_htlc_count" toml:"exclude_from_htlc_count"`
 	To                    []string `long:"to" description:"try only this channel or node as target (should satisfy other constraints too; can be specified multiple times)" json:"to" toml:"to"`
 	From                  []string `long:"from" description:"try only this channel or node as source (should satisfy other constraints too; can be specified multiple times)" json:"from" toml:"from"`
 	FailTolerance         int64    `long:"fail-tolerance" description:"a payment that differs from the prior attempt by this ppm will be cancelled" json:"fail_tolerance" toml:"fail_tolerance"`
@@ -285,8 +285,8 @@ func preflightChecks(params *configParams) error {
 		params.TimeoutRoute = 30
 	}
 
-	if params.MaxHtlcCount == 0 {
-		params.MaxHtlcCount = 1000000 // effectively no limit
+	if params.ExcludeFromHtlcCount == 0 {
+		params.ExcludeFromHtlcCount = 1000000 // effectively no limit
 	}
 
 	// Additional sanity check: Invoice should expire before the timeout rebalance

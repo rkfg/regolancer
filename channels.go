@@ -62,10 +62,10 @@ func parseNodeChannelIDs(ids []string) (chans map[uint64]struct{}, nodes [][]byt
 
 func (r *regolancer) getChannelCandidates(fromPerc, toPerc int64) error {
 
-	minExpiry := int64(r.blockHeight) + params.MinOutgoingHtlcExpiry
+	minExpiry := int64(r.blockHeight) + params.ExcludeFromHtlcExpiry
 	// Checks the number and expiry of pending outgoing HTLCs in a channel.
 	checkOutgoingHtlcs := func(channel *lnrpc.Channel) error {
-		if len(channel.PendingHtlcs) > int(params.MaxHtlcCount) {
+		if len(channel.PendingHtlcs) > int(params.ExcludeFromHtlcCount) {
 			return fmt.Errorf("too many pending HTLCs (%d)", len(channel.PendingHtlcs))
 
 		}
