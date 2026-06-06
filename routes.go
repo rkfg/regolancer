@@ -101,7 +101,7 @@ func (r *regolancer) getRoutes(ctx context.Context, from, to uint64, amtMsat int
 	}
 	routes, err := r.lnClient.QueryRoutes(routeCtx, &lnrpc.QueryRoutesRequest{
 		PubKey:            r.myPK,
-		OutgoingChanId:    from,
+		OutgoingChanIds:   []uint64{from},
 		LastHopPubkey:     lastPK,
 		AmtMsat:           amtMsat,
 		UseMissionControl: true,
