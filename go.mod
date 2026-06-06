@@ -1,8 +1,8 @@
 module github.com/rkfg/regolancer
 
-go 1.23.6
+go 1.25.11
 
-toolchain go1.24.4
+toolchain go1.26.4
 
 require (
 	github.com/BurntSushi/toml v1.5.0
